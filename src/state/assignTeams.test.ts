@@ -3,7 +3,11 @@ import { createInitialState } from './initialState';
 import { addPlayer, assignTeams, reshuffleTeams } from './gameLogic';
 import type { GameState } from '../types';
 
-function withPlayers(count: number, state: GameState = createInitialState()): GameState {
+// Pinned to numCourts: 1 (rather than relying on the app's default) since
+// several tests are built around single-court distribution math (10
+// players -> 5v5, 12 players -> 5v5 + 2 sitting). Tests that specifically
+// exercise multiple courts override numCourts explicitly.
+function withPlayers(count: number, state: GameState = { ...createInitialState(), numCourts: 1 }): GameState {
   let next = state;
   for (let i = 0; i < count; i++) next = addPlayer(next, `Player${i}`);
   return next;

@@ -66,7 +66,12 @@ export function RotationBoard() {
   }
 
   const draggingPlayer = draggingId ? getPlayer(state, draggingId) : undefined;
-  const inWinnerSelectMode = state.round > 0;
+  // Winner-picking only makes sense once teams are actually assigned right
+  // now - `round > 0` alone is wrong here too: Clear Teams can wipe every
+  // team without resetting the round counter, which would otherwise leave
+  // this UI showing with nothing valid to submit a winner for (see the
+  // matching fix in GameControls for Assign Teams vs Reshuffle Teams).
+  const inWinnerSelectMode = state.players.some((p) => p.status === 'team');
   // Only widen to a 2-column layout once there's actually a 2nd court to
   // show - a single court/bench stretched across a 2-column grid on desktop
   // left the court narrow in one column with the bench oddly full-width

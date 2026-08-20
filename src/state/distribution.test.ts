@@ -16,9 +16,13 @@ describe('distributePlayers - single court', () => {
 });
 
 describe('distributePlayers - two courts, gameType 3 (default)', () => {
+  it('stays single-court through 13 players even with a 2nd court available - splitting into two 3v3s is worse than one fuller game', () => {
+    for (const players of [11, 12, 13]) {
+      expect(distributePlayers(2, players, 3, null)).toMatchObject({ court1: 5, court2: 0 });
+    }
+  });
+
   const cases: [number, number, number][] = [
-    [12, 3, 3],
-    [13, 3, 3],
     [14, 4, 3],
     [16, 4, 4],
     [18, 5, 4],
@@ -27,6 +31,17 @@ describe('distributePlayers - two courts, gameType 3 (default)', () => {
   ];
   it.each(cases)('%i players -> court1=%i, court2=%i', (players, court1, court2) => {
     expect(distributePlayers(2, players, 3, null)).toMatchObject({ court1, court2 });
+  });
+});
+
+describe('distributePlayers - Court 2 stays off below the 2-court threshold regardless of small-group solo shrinking', () => {
+  it('a small group with 2 courts available still shrinks Court 1 (not stuck at 5v5 target)', () => {
+    // Regression: Court 1 must fall back to the same solo-court sizing
+    // when Court 2 isn't warranted yet, even if numCourts allows for 2 -
+    // otherwise a 6-person group with 2 courts available would target a
+    // 5v5 (only 6 people to fill 10 slots) instead of a proper 3v3.
+    expect(distributePlayers(2, 6, 3, null)).toMatchObject({ court1: 3, court2: 0 });
+    expect(distributePlayers(2, 8, 3, null)).toMatchObject({ court1: 4, court2: 0 });
   });
 });
 

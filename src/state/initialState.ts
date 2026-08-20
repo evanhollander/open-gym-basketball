@@ -34,7 +34,12 @@ export function createInitialState(): GameState {
     players: [],
     teams,
     courts,
-    numCourts: 1,
+    // Defaults to 2 rather than 1: a single court leaves more than half a
+    // typical-sized group (e.g. 18 players) benched with no obvious hint
+    // that more courts are available in Settings. Harmless for small
+    // groups - Court 2 stays inactive until there are enough players for
+    // it regardless of this setting (see distributePlayers).
+    numCourts: 2,
     gameType: 3, // "3 v 3" minimum, same default as the original
     maxTeamSize: null, // uncapped by default = identical to original behavior
     round: 0,
