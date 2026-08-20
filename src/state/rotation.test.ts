@@ -18,6 +18,21 @@ describe('updateWins', () => {
     expect(() => updateWins(withPlayers(10), {})).toThrow(/assign teams first/i);
   });
 
+  it('does not require teams again just because Clear # Games Sat reset the round counter', () => {
+    // Regression: Clear # Games Sat resets `round` to 0 without touching
+    // who's on a team. updateWins used to check `round === 0` directly,
+    // so clicking Clear # Games Sat mid-round (teams still fully assigned)
+    // made Submit Winners throw "Assign Teams first" even though the UI -
+    // which checks team assignment, not round - kept showing the button.
+    let state = assignTeams(withPlayers(10), false);
+    state = clearSat(state);
+    expect(state.round).toBe(0);
+    expect(state.players.some((p) => p.status === 'team')).toBe(true);
+
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    expect(() => updateWins(state, { [court1.id]: court1.teamAId })).not.toThrow();
+  });
+
   it('requires a winner for every active court', () => {
     const state = assignTeams(withPlayers(10), false);
     const court1 = state.courts.find((c) => c.index === 1)!;

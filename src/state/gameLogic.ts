@@ -603,7 +603,12 @@ function otherTeamOnCourt(court: Court, teamId: string): string {
  * `winners` maps courtId -> the winning teamId.
  */
 export function updateWins(state: GameState, winners: Record<string, string>): GameState {
-  if (state.round === 0) {
+  // Checking team assignment directly, not `round === 0`: Clear # Games Sat
+  // resets the round counter without touching who's on a team, so relying
+  // on round alone let the UI keep showing Submit Winners (it already
+  // checks assignment, not round - see RotationBoard.tsx) right up until
+  // this guard threw "Assign Teams first" on a team that very much existed.
+  if (!state.players.some((p) => p.status === 'team')) {
     throw new Error('No teams yet - Assign Teams first.');
   }
   const activeCourts = getActiveCourts(state);
