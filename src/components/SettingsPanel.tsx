@@ -1,0 +1,84 @@
+import { useGameDispatch, useGameState } from '../state/context';
+import type { GameType } from '../types';
+
+const GAME_TYPE_OPTIONS: { value: GameType; label: string }[] = [
+  { value: 2, label: '2 v 2' },
+  { value: 3, label: '3 v 3' },
+  { value: 4, label: '4 v 4' },
+  { value: 5, label: '5 v 5' },
+];
+
+export function SettingsPanel() {
+  const state = useGameState();
+  const dispatch = useGameDispatch();
+
+  return (
+    <section className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
+      <div>
+        <label htmlFor="gameType" className="mb-1 block font-medium">
+          Minimum Game
+        </label>
+        <select
+          id="gameType"
+          value={state.gameType}
+          onChange={(e) => dispatch({ type: 'SET_GAME_TYPE', gameType: Number(e.target.value) as GameType })}
+          className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+        >
+          {GAME_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Determines the minimum game format.</p>
+      </div>
+
+      <div>
+        <label htmlFor="maxTeamSize" className="mb-1 block font-medium">
+          Max Team Size
+        </label>
+        <select
+          id="maxTeamSize"
+          value={state.maxTeamSize ?? 'none'}
+          onChange={(e) =>
+            dispatch({
+              type: 'SET_MAX_TEAM_SIZE',
+              maxTeamSize: e.target.value === 'none' ? null : (Number(e.target.value) as GameType),
+            })
+          }
+          className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+        >
+          <option value="none">No cap (fit as many players as possible)</option>
+          {GAME_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              Cap at {o.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Caps players-per-team so a court never grows bigger than this, even if there are enough players -
+          extra players sit and rotate in instead.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="numCourts" className="mb-1 block font-medium">
+          Number of Courts
+        </label>
+        <input
+          id="numCourts"
+          type="number"
+          min={1}
+          max={4}
+          value={state.numCourts}
+          onChange={(e) => {
+            const value = Math.min(4, Math.max(1, Number(e.target.value))) as 1 | 2 | 3 | 4;
+            dispatch({ type: 'SET_NUM_COURTS', numCourts: value });
+          }}
+          className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+        />
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Supports up to 4 courts.</p>
+      </div>
+    </section>
+  );
+}
