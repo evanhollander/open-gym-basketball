@@ -127,8 +127,6 @@ export type Action =
   | { type: 'ASSIGN_TEAMS'; keepTeams?: boolean }
   | { type: 'RESHUFFLE_TEAMS' }
   | { type: 'SUBMIT_WINNERS'; winners: Record<string, string> } // courtId -> winning teamId
-  | { type: 'SIT_PLAYER'; playerId: string }
-  | { type: 'SWAP_PLAYERS'; playerAId: string; playerBId: string }
   | { type: 'MOVE_PLAYER'; playerId: string; target: DropTarget }
   | { type: 'CLEAR_TEAMS' }
   | { type: 'CLEAR_SAT' }

@@ -34,10 +34,6 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return gameLogic.reshuffleTeams(state);
       case 'SUBMIT_WINNERS':
         return gameLogic.updateWins(state, action.winners);
-      case 'SIT_PLAYER':
-        return gameLogic.sitPlayer(state, action.playerId);
-      case 'SWAP_PLAYERS':
-        return gameLogic.swapPlayers(state, action.playerAId, action.playerBId);
       case 'CLEAR_TEAMS':
         return gameLogic.clearTeams(state);
       case 'CLEAR_SAT':

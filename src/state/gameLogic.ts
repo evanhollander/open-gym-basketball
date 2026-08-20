@@ -584,10 +584,11 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
   return assignTeams(next, false);
 }
 
-// ---- Manual overrides (temporary, pre-drag-and-drop) ----
-// Replaces the original's sitPlayer()/swapPlayers(). These back the M3
-// dropdown-based controls; M4 replaces the UI with drag-and-drop but reuses
-// this same logic underneath (movePlayer, added then, builds on swapPlayers).
+// ---- Manual overrides ----
+// Replaces the original's sitPlayer()/swapPlayers(). No dedicated UI calls
+// these directly anymore - dragging a player card (movePlayer, section 6)
+// covers both cases - but movePlayer's team-slot-to-bench and
+// swap-onto-an-occupied-slot cases build on top of these two functions.
 
 /** Manually benches a player who's currently on a team. */
 export function sitPlayer(state: GameState, playerId: string): GameState {
