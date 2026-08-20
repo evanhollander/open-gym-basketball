@@ -369,6 +369,42 @@ const TEAM_COURT_ORDER: { teamId: string; courtIndex: 1 | 2 | 3 | 4 }[] = [
 ];
 
 /**
+ * Clears any team-slot entries beyond the team's *current* size, and
+ * un-marks whoever was in them. Needed because a team can shrink between
+ * assignments (a new, smaller Max Team Size cap, or a settings change) while
+ * still holding players in what are now out-of-range slot positions - e.g.
+ * a 5v5 team capped down to 4v4 still has a 5th player sitting in slot
+ * index 4. CourtView only ever renders slots up to the current size, so
+ * that player silently disappears from the court - and since nothing else
+ * touches their `status`, it's still 'team', so the bench-rebuild sweep
+ * below (which only benches players *not* marked 'team') skips them too.
+ * They'd be stuck: not shown on the court, not shown on the bench, still
+ * occupying a phantom slot nobody renders. Called before anything else in
+ * assignTeams so both the fill loop and the keepTeams candidate pool see
+ * the corrected state.
+ */
+function truncateOversizedTeams(state: GameState): GameState {
+  let next = state;
+  for (const court of next.courts) {
+    for (const teamId of [court.teamAId, court.teamBId]) {
+      const team = next.teams[teamId];
+      const overflowIds = team.slots.slice(court.sizePerTeam).filter((id): id is string => id !== null);
+      if (overflowIds.length === 0) continue;
+      const overflow = new Set(overflowIds);
+      next = {
+        ...next,
+        teams: {
+          ...next.teams,
+          [teamId]: { ...team, slots: team.slots.map((id, i) => (i >= court.sizePerTeam ? null : id)) },
+        },
+        players: next.players.map((p) => (overflow.has(p.id) ? { ...p, status: 'holding', teamId: null } : p)),
+      };
+    }
+  }
+  return next;
+}
+
+/**
  * Fills every empty team slot on every active court, then rebuilds the
  * bench. This is the single entry point both the "Assign Teams" button
  * (keepTeams=false) and "Reshuffle Teams" (keepTeams=true) call.
@@ -383,7 +419,7 @@ export function assignTeams(state: GameState, keepTeams: boolean): GameState {
     throw new Error('Minimum 6 players required.');
   }
 
-  let next = applyDistribution(state);
+  let next = truncateOversizedTeams(applyDistribution(state));
 
   if (keepTeams) {
     // Reshuffle: capture who's currently playing before wiping the board, so

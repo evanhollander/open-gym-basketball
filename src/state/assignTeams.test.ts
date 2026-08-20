@@ -60,6 +60,41 @@ describe('assignTeams', () => {
     expect(countByStatus(capped).sitting).toBe(2);
   });
 
+  it('benches the overflow (no one vanishes) when a cap is applied AFTER teams were already assigned larger', () => {
+    // Regression test: assigning uncapped first fills every team to its
+    // full (larger) size; applying the cap afterward must correctly bench
+    // whoever no longer fits, not leave them stuck marked 'team' in a slot
+    // index that no longer exists (invisible on both the court and bench).
+    let state = withPlayers(18);
+    state = { ...state, numCourts: 2 };
+    const uncapped = assignTeams(state, false); // 5v5 + 4v4, 0 sitting
+    expect(countByStatus(uncapped).team).toBe(18);
+
+    const cappedAfter = assignTeams({ ...uncapped, maxTeamSize: 4 }, false);
+    expect(cappedAfter.players).toHaveLength(18); // nobody disappears
+    expect(countByStatus(cappedAfter).team).toBe(16);
+    expect(countByStatus(cappedAfter).sitting).toBe(2);
+    expect(cappedAfter.sittingOrder).toHaveLength(2);
+    // Every team's slots array should only reference players 1:1, no stale
+    // out-of-range entries left over from the larger assignment.
+    for (const court of cappedAfter.courts) {
+      for (const teamId of [court.teamAId, court.teamBId]) {
+        const filled = cappedAfter.teams[teamId].slots.filter((s) => s !== null);
+        expect(filled.length).toBeLessThanOrEqual(court.sizePerTeam);
+      }
+    }
+  });
+
+  it('also fixes the shrink-after-the-fact case via Reshuffle Teams', () => {
+    let state = withPlayers(18);
+    state = { ...state, numCourts: 2 };
+    const uncapped = assignTeams(state, false);
+    const cappedAfter = reshuffleTeams({ ...uncapped, maxTeamSize: 4 });
+    expect(cappedAfter.players).toHaveLength(18);
+    expect(countByStatus(cappedAfter).team).toBe(16);
+    expect(countByStatus(cappedAfter).sitting).toBe(2);
+  });
+
   it('reshuffle keeps the same set of players active, just re-splits their teams', () => {
     const assigned = assignTeams(withPlayers(12), false);
     const activeBefore = new Set(assigned.players.filter((p) => p.status === 'team').map((p) => p.id));
