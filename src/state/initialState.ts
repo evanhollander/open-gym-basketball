@@ -39,7 +39,7 @@ export function createInitialState(): GameState {
     maxTeamSize: null, // uncapped by default = identical to original behavior
     round: 0,
     maxSit: 1,
-    maxConsecutiveWins: 2,
+    maxConsecutiveWins: 3,
     court1WinnerTeamId: null,
     court1WinStreak: 0,
     lastSatPlayerIds: [],
