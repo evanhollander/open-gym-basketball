@@ -86,6 +86,28 @@ export function SettingsPanel() {
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Supports up to 4 courts.</p>
       </div>
 
+      <div>
+        <label htmlFor="maxConsecutiveWins" className="mb-1 block font-medium">
+          Winner Stays On (max consecutive wins)
+        </label>
+        <select
+          id="maxConsecutiveWins"
+          value={state.maxConsecutiveWins}
+          onChange={(e) => dispatch({ type: 'SET_MAX_CONSECUTIVE_WINS', value: Number(e.target.value) })}
+          className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+        >
+          {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Court 1's winning team is benched once it wins this many games in a row, even though it won -
+          keeps one team from holding the main court all night.
+        </p>
+      </div>
+
       <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
         <button
           type="button"
