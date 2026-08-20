@@ -1,18 +1,35 @@
 import { useState } from 'react';
 import { useGameDispatch, useGameState } from '../state/context';
 
-// Temporary pre-drag-and-drop controls (M3) - dropdowns instead of the
-// original's "type a player number into a box" inputs, since we have real
-// player objects to pick names from. M4 replaces this panel with drag-and-drop
-// player cards, reusing the same sitPlayer/swapPlayers logic underneath.
+// Pre-drag-and-drop controls (M3) - dropdowns instead of the original's
+// "type a player number into a box" inputs. Drag-and-drop (M4) is now the
+// primary way to move players; this panel is a fallback for anyone who
+// can't drag (accessibility, or just prefers it), so it's collapsed by
+// default - on a phone, Courts + Bench should be the first thing visible
+// after Assign Teams, not this.
 export function ManualControls() {
   const state = useGameState();
   const dispatch = useGameDispatch();
   const [sitId, setSitId] = useState('');
   const [swapOutId, setSwapOutId] = useState('');
   const [swapInId, setSwapInId] = useState('');
+  const [expanded, setExpanded] = useState(false);
 
   if (state.round === 0) return null;
+
+  if (!expanded) {
+    return (
+      <div className="mx-auto mt-4 max-w-md text-center">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-sm text-blue-700 underline dark:text-blue-400"
+        >
+          Sit / swap a player manually
+        </button>
+      </div>
+    );
+  }
 
   const onTeam = state.players.filter((p) => p.status === 'team');
 
@@ -31,6 +48,13 @@ export function ManualControls() {
 
   return (
     <div className="mx-auto mt-4 flex max-w-md flex-col gap-3 rounded border border-gray-300 p-3 dark:border-gray-600">
+      <button
+        type="button"
+        onClick={() => setExpanded(false)}
+        className="self-end text-sm text-blue-700 underline dark:text-blue-400"
+      >
+        Hide
+      </button>
       <div className="flex items-center gap-2">
         <label htmlFor="sitPlayer" className="shrink-0">
           Sit Player:

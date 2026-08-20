@@ -65,18 +65,24 @@ export function SettingsPanel() {
         <label htmlFor="numCourts" className="mb-1 block font-medium">
           Number of Courts
         </label>
-        <input
+        {/* A free-text number input misbehaves on mobile: tapping doesn't
+            select the existing digit, so typing "2" while it shows "1"
+            produces "12" before clamping, which always clamps to the max
+            (4). A fixed 1-4 range has no reason to be free text anyway. */}
+        <select
           id="numCourts"
-          type="number"
-          min={1}
-          max={4}
           value={state.numCourts}
-          onChange={(e) => {
-            const value = Math.min(4, Math.max(1, Number(e.target.value))) as 1 | 2 | 3 | 4;
-            dispatch({ type: 'SET_NUM_COURTS', numCourts: value });
-          }}
+          onChange={(e) =>
+            dispatch({ type: 'SET_NUM_COURTS', numCourts: Number(e.target.value) as 1 | 2 | 3 | 4 })
+          }
           className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
-        />
+        >
+          {[1, 2, 3, 4].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Supports up to 4 courts.</p>
       </div>
     </section>
