@@ -94,6 +94,57 @@ describe('swapPlayers', () => {
     expect(after.sittingOrder).toContain(onTeam.id);
     expect(after.sittingOrder).not.toContain(sitting.id);
   });
+
+  it('counts a sit against the player displaced to the bench', () => {
+    const state = assignTeams(withPlayers(12), false);
+    const onTeam = state.players.find((p) => p.status === 'team')!;
+    const sitting = state.players.find((p) => p.status === 'sitting')!;
+    const before = onTeam.sitCount;
+
+    const after = swapPlayers(state, sitting.id, onTeam.id);
+
+    expect(after.players.find((p) => p.id === onTeam.id)!.sitCount).toBe(before + 1);
+  });
+
+  it('refunds a same-round bench bump for the player swapped onto a team', () => {
+    // 12 players, 1 default court (5v5) -> 2 end up freshly benched this
+    // round, sitCount bumped to 1 with statusRound === current round.
+    const state = assignTeams(withPlayers(12), false);
+    const freshlyBenched = state.players.find((p) => p.id === state.sittingOrder[0])!;
+    expect(freshlyBenched.sitCount).toBe(1);
+    expect(freshlyBenched.statusRound).toBe(state.round);
+    const onTeam = state.players.find((p) => p.status === 'team')!;
+
+    const after = swapPlayers(state, freshlyBenched.id, onTeam.id);
+
+    // They never actually sat out a round, so the bump should be undone.
+    expect(after.players.find((p) => p.id === freshlyBenched.id)!.sitCount).toBe(0);
+  });
+
+  it('does not refund a sit from an earlier round when swapped onto a team', () => {
+    const state = assignTeams(withPlayers(12), false);
+    const benchedEarlier = state.players.find((p) => p.id === state.sittingOrder[0])!;
+    // Simulate they sat out a round two rounds ago (not this round).
+    const stale = {
+      ...state,
+      players: state.players.map((p) =>
+        p.id === benchedEarlier.id ? { ...p, sitCount: 3, statusRound: state.round - 2 } : p,
+      ),
+    };
+    const onTeam = stale.players.find((p) => p.status === 'team')!;
+
+    const after = swapPlayers(stale, benchedEarlier.id, onTeam.id);
+
+    expect(after.players.find((p) => p.id === benchedEarlier.id)!.sitCount).toBe(3);
+  });
+
+  it('leaves sit counts untouched when swapping two players already on teams', () => {
+    const state = assignTeams(withPlayers(10), false);
+    const [p1, p2] = state.players.filter((p) => p.status === 'team');
+    const after = swapPlayers(state, p1.id, p2.id);
+    expect(after.players.find((p) => p.id === p1.id)!.sitCount).toBe(p1.sitCount);
+    expect(after.players.find((p) => p.id === p2.id)!.sitCount).toBe(p2.sitCount);
+  });
 });
 
 describe('clearTeams', () => {

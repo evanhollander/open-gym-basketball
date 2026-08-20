@@ -619,6 +619,33 @@ export function sitPlayer(state: GameState, playerId: string): GameState {
   };
 }
 
+/**
+ * If a swap crosses the team/bench boundary for one of the two players (the
+ * common case: dragging a bench player onto an occupied team slot), applies
+ * the same bench accounting as sitPlayer()/placeFromBench() - otherwise a
+ * player benched via a swap would never get a sit counted against them
+ * (breaking future fairness math), and a player swapped in right after
+ * being benched this same round would wrongly keep that sit.
+ * `self` is the player being evaluated; `newStatus` is the status they're
+ * taking on post-swap (their swap partner's old status).
+ */
+function swapBenchAdjustment(
+  self: Player,
+  newStatus: PlayerStatus,
+  round: number,
+): Pick<Player, 'sitCount' | 'statusRound'> | null {
+  if (self.status === 'team' && newStatus !== 'team') {
+    // Heading to the bench.
+    return { sitCount: self.sitCount + 1, statusRound: round };
+  }
+  if (self.status !== 'team' && newStatus === 'team') {
+    // Heading onto a team - refund a same-round bench bump, if any.
+    const sitBumpedThisRound = self.statusRound === round;
+    return { sitCount: sitBumpedThisRound ? Math.max(0, self.sitCount - 1) : self.sitCount, statusRound: self.statusRound };
+  }
+  return null; // team<->team or bench<->bench: nobody's sit accounting changes
+}
+
 /** Swaps two players' spots, whatever those are - team slot <-> team slot,
  * team slot <-> bench, or bench <-> bench. Each player takes over the
  * other's status/team-slot/bench-position entirely. */
@@ -644,13 +671,18 @@ export function swapPlayers(state: GameState, playerAId: string, playerBId: stri
     return id;
   });
 
+  const aAdjustment = swapBenchAdjustment(a, b.status, state.round);
+  const bAdjustment = swapBenchAdjustment(b, a.status, state.round);
+
   const players = state.players.map((p) => {
-    if (p.id === playerAId) return { ...p, status: b.status, teamId: b.teamId };
-    if (p.id === playerBId) return { ...p, status: a.status, teamId: a.teamId };
+    if (p.id === playerAId) return { ...p, status: b.status, teamId: b.teamId, ...aAdjustment };
+    if (p.id === playerBId) return { ...p, status: a.status, teamId: a.teamId, ...bAdjustment };
     return p;
   });
 
-  return { ...state, teams, players, sittingOrder, lastError: null };
+  const maxSit = players.reduce((max, p) => Math.max(max, p.sitCount), state.maxSit);
+
+  return { ...state, teams, players, sittingOrder, maxSit, lastError: null };
 }
 
 /** Blanks every team's slots and puts everyone back to 'none'/bench.

@@ -40,6 +40,27 @@ describe('movePlayer', () => {
     expect(next.sittingOrder).not.toContain(benchPlayerId);
   });
 
+  it('bench -> occupied team slot: counts a sit for the displaced player and refunds the incoming one', () => {
+    // 12 players, default 1 court (5v5) -> 2 freshly benched this round.
+    const state = assignTeams(withPlayers(12), false);
+    const benchPlayerId = state.sittingOrder[0];
+    const benchPlayerBefore = state.players.find((p) => p.id === benchPlayerId)!;
+    expect(benchPlayerBefore.sitCount).toBe(1); // just benched this round
+
+    const teamId = 'team-1';
+    const slotIndex = state.teams[teamId].slots.findIndex((s) => s !== null);
+    const occupantId = state.teams[teamId].slots[slotIndex]!;
+    const occupantBefore = state.players.find((p) => p.id === occupantId)!;
+
+    const next = movePlayer(state, benchPlayerId, { kind: 'team-slot', teamId, slotIndex });
+
+    // They never actually sat, so the bump they got when the round started
+    // should be refunded now that they're playing after all.
+    expect(next.players.find((p) => p.id === benchPlayerId)!.sitCount).toBe(0);
+    // The player they displaced is now genuinely sitting - that must count.
+    expect(next.players.find((p) => p.id === occupantId)!.sitCount).toBe(occupantBefore.sitCount + 1);
+  });
+
   it('team slot -> bench: sits the player out', () => {
     const state = assignTeams(withPlayers(10), false);
     const onTeam = state.players.find((p) => p.status === 'team')!;

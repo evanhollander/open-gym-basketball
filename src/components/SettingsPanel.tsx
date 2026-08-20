@@ -85,6 +85,23 @@ export function SettingsPanel() {
         </select>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Supports up to 4 courts.</p>
       </div>
+
+      <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Remove every player and reset all settings? This cannot be undone.')) {
+              dispatch({ type: 'RESET_ALL' });
+            }
+          }}
+          className="w-full rounded border border-red-300 px-4 py-2 text-red-700 active:bg-red-50 dark:border-red-800 dark:text-red-400 dark:active:bg-red-950"
+        >
+          Reset Everything
+        </button>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Removes every player and resets rounds, sit counts, and win streaks. Settings above stay as-is.
+        </p>
+      </div>
     </section>
   );
 }
