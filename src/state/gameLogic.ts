@@ -369,35 +369,63 @@ const TEAM_COURT_ORDER: { teamId: string; courtIndex: 1 | 2 | 3 | 4 }[] = [
 ];
 
 /**
- * Clears any team-slot entries beyond the team's *current* size, and
- * un-marks whoever was in them. Needed because a team can shrink between
- * assignments (a new, smaller Max Team Size cap, or a settings change) while
- * still holding players in what are now out-of-range slot positions - e.g.
- * a 5v5 team capped down to 4v4 still has a 5th player sitting in slot
- * index 4. CourtView only ever renders slots up to the current size, so
- * that player silently disappears from the court - and since nothing else
- * touches their `status`, it's still 'team', so the bench-rebuild sweep
- * below (which only benches players *not* marked 'team') skips them too.
- * They'd be stuck: not shown on the court, not shown on the bench, still
- * occupying a phantom slot nobody renders. Called before anything else in
- * assignTeams so both the fill loop and the keepTeams candidate pool see
- * the corrected state.
+ * Removes the excess players from any team that's grown too big for its
+ * *current* size, and un-marks whoever was removed. Needed because a team
+ * can shrink between assignments (a new, smaller Max Team Size cap, or a
+ * settings change) while still holding more players than now fit - e.g. a
+ * 5v5 team capped down to 4v4 still has a 5th player. CourtView only ever
+ * renders slots up to the current size, so that player would silently
+ * disappear from the court - and since nothing else touches their `status`,
+ * it'd still say 'team', so the bench-rebuild sweep below (which only
+ * benches players *not* marked 'team') would skip them too. They'd be
+ * stuck: not shown on the court, not shown on the bench.
+ *
+ * Which player(s) get removed matters for fairness: picking by raw slot
+ * index (i.e. always cutting whichever slot happens to be last) is a trap -
+ * when a cap is lifted, the fill loop naturally slots previously-benched
+ * players into whatever slot just opened up (usually the last one), so if
+ * the cap comes back later, index-based truncation would immediately bench
+ * the very players who had just been fairly rotated in, undoing that
+ * rotation. Instead, remove whoever on the oversized team has the *lowest*
+ * sitCount - they've had relatively more playing time already, so they're
+ * the fairest pick to give up their spot.
+ *
+ * Called before anything else in assignTeams so both the fill loop and the
+ * keepTeams candidate pool see the corrected state.
  */
 function truncateOversizedTeams(state: GameState): GameState {
   let next = state;
   for (const court of next.courts) {
     for (const teamId of [court.teamAId, court.teamBId]) {
       const team = next.teams[teamId];
-      const overflowIds = team.slots.slice(court.sizePerTeam).filter((id): id is string => id !== null);
-      if (overflowIds.length === 0) continue;
-      const overflow = new Set(overflowIds);
+      const filled = team.slots.filter((id): id is string => id !== null);
+      if (filled.length <= court.sizePerTeam) continue;
+
+      // Keep the highest-sitCount players (they've earned their spot back
+      // most recently); the rest go to the bench.
+      const keepIds = filled
+        .map((id) => next.players.find((p) => p.id === id)!)
+        .sort((a, b) => b.sitCount - a.sitCount)
+        .slice(0, court.sizePerTeam)
+        .map((p) => p.id);
+      const keepSet = new Set(keepIds);
+      const removedIds = filled.filter((id) => !keepSet.has(id));
+
+      // Rebuild the slots array so the keepers occupy the low, in-range
+      // indices with no gaps - if we instead just nulled out the removed
+      // player's *own* slot, a kept player could end up stranded at a now
+      // out-of-range index whenever the removed player happened to have
+      // been in a lower slot than them, reproducing the exact "phantom
+      // player" bug this function exists to prevent, just one step later.
+      const slots = team.slots.map(() => null as string | null);
+      keepIds.forEach((id, i) => {
+        slots[i] = id;
+      });
+
       next = {
         ...next,
-        teams: {
-          ...next.teams,
-          [teamId]: { ...team, slots: team.slots.map((id, i) => (i >= court.sizePerTeam ? null : id)) },
-        },
-        players: next.players.map((p) => (overflow.has(p.id) ? { ...p, status: 'holding', teamId: null } : p)),
+        teams: { ...next.teams, [teamId]: { ...team, slots } },
+        players: next.players.map((p) => (removedIds.includes(p.id) ? { ...p, status: 'holding', teamId: null } : p)),
       };
     }
   }

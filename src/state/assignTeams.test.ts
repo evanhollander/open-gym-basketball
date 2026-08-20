@@ -95,6 +95,38 @@ describe('assignTeams', () => {
     expect(countByStatus(cappedAfter).sitting).toBe(2);
   });
 
+  it('when a team shrinks, benches whoever has sat the least first - not whoever happens to be re-benched already', () => {
+    // Regression test for the reported bug: cap -> uncap -> re-cap with 18
+    // players re-benched the same two players who'd already sat in round 1.
+    // Root cause: when the cap was removed, the fill loop naturally slotted
+    // the just-benched players into the newly-opened team slots; when the
+    // cap came back, truncating by raw slot position cut off exactly those
+    // slots again, undoing their fair rotation. Truncation must be
+    // fairness-aware: never re-bench an already-sat player while a
+    // never-sat player remains on the same team.
+    let state = withPlayers(18);
+    state = { ...state, numCourts: 2, maxTeamSize: 4 };
+
+    const round1 = assignTeams(state, false); // capped: 16 play, 2 sit
+    const round1Sitters = new Set(round1.sittingOrder);
+    expect(round1Sitters.size).toBe(2);
+
+    const round2 = assignTeams({ ...round1, maxTeamSize: null }, false); // uncapped: everyone plays
+    expect(countByStatus(round2).sitting ?? 0).toBe(0);
+
+    const round3 = assignTeams({ ...round2, maxTeamSize: 4 }, false); // re-capped
+    expect(round3.players).toHaveLength(18);
+    expect(countByStatus(round3).team).toBe(16);
+    expect(countByStatus(round3).sitting).toBe(2);
+
+    // The players who already sat in round 1 (and were fairly rotated back
+    // in during round 2) must not be the ones sent right back to the bench.
+    const round3Sitters = new Set(round3.sittingOrder);
+    for (const id of round1Sitters) {
+      expect(round3Sitters.has(id)).toBe(false);
+    }
+  });
+
   it('reshuffle keeps the same set of players active, just re-splits their teams', () => {
     const assigned = assignTeams(withPlayers(12), false);
     const activeBefore = new Set(assigned.players.filter((p) => p.status === 'team').map((p) => p.id));
