@@ -67,6 +67,12 @@ export function RotationBoard() {
 
   const draggingPlayer = draggingId ? getPlayer(state, draggingId) : undefined;
   const inWinnerSelectMode = state.round > 0;
+  // Only widen to a 2-column layout once there's actually a 2nd court to
+  // show - a single court/bench stretched across a 2-column grid on desktop
+  // left the court narrow in one column with the bench oddly full-width
+  // below it. Bench lives in the same width-constrained wrapper as the
+  // courts so it always matches, rather than always spanning full width.
+  const isMultiCourt = activeCourts.length > 1;
 
   return (
     <section className="mx-auto w-full max-w-4xl p-4">
@@ -74,29 +80,31 @@ export function RotationBoard() {
         <GameControls />
       </div>
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {activeCourts.map((court) => (
-            <CourtView
-              key={court.id}
-              court={court}
-              selectedWinnerTeamId={inWinnerSelectMode ? (winners[court.id] ?? null) : undefined}
-              onSelectWinner={inWinnerSelectMode ? (teamId) => selectWinner(court.id, teamId) : undefined}
-            />
-          ))}
-        </div>
-        {inWinnerSelectMode && (
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={submitWinners}
-              className="rounded bg-green-600 px-6 py-3 text-lg font-semibold text-white active:bg-green-700"
-            >
-              Submit Winners / Next Game
-            </button>
+        <div className={'mx-auto mt-4 ' + (isMultiCourt ? 'max-w-4xl' : 'max-w-md')}>
+          <div className={'grid grid-cols-1 gap-4' + (isMultiCourt ? ' md:grid-cols-2' : '')}>
+            {activeCourts.map((court) => (
+              <CourtView
+                key={court.id}
+                court={court}
+                selectedWinnerTeamId={inWinnerSelectMode ? (winners[court.id] ?? null) : undefined}
+                onSelectWinner={inWinnerSelectMode ? (teamId) => selectWinner(court.id, teamId) : undefined}
+              />
+            ))}
           </div>
-        )}
-        <div className="mt-4">
-          <BenchList />
+          {inWinnerSelectMode && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={submitWinners}
+                className="rounded bg-green-600 px-6 py-3 text-lg font-semibold text-white active:bg-green-700"
+              >
+                Submit Winners / Next Game
+              </button>
+            </div>
+          )}
+          <div className="mt-4">
+            <BenchList />
+          </div>
         </div>
         <DragOverlay>{draggingPlayer ? <PlayerCard player={draggingPlayer} /> : null}</DragOverlay>
       </DndContext>
