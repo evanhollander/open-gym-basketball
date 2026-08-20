@@ -8,13 +8,26 @@ interface TeamColumnProps {
   size: number;
   isWinnerPick: boolean;
   onPickWinner?: () => void;
+  /** Court 1's current consecutive-win streak, only if this team is the
+   * one holding it (see maxConsecutiveWins in Settings). */
+  winStreak?: number;
 }
 
-function TeamColumn({ teamId, size, isWinnerPick, onPickWinner }: TeamColumnProps) {
+function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: TeamColumnProps) {
   const state = useGameState();
   const team = getTeam(state, teamId)!;
   const teamNumber = teamId.split('-')[1];
   const label = `Team ${teamNumber} (${team.side === 'white' ? 'White' : 'Dark'})`;
+  // Ternary, not `winStreak && winStreak > 0 && (...)`: when winStreak is
+  // 0, `0 && x` evaluates to 0, and JSX renders a literal 0 (unlike false/
+  // null/undefined, which render as nothing) - that would print a stray
+  // "0" next to every non-streaking team's name.
+  const streakBadge =
+    winStreak && winStreak > 0 ? (
+      <span className="ml-1" title={`${winStreak} wins in a row`}>
+        🔥{winStreak}
+      </span>
+    ) : null;
 
   return (
     <div className="flex-1">
@@ -35,10 +48,12 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner }: TeamColumnProp
         >
           {label}
           {isWinnerPick ? ' ✓ Won' : ''}
+          {streakBadge}
         </button>
       ) : (
         <h3 className="mb-1 rounded bg-blue-100 px-2 py-1 text-center text-sm font-semibold text-blue-950 dark:bg-blue-950 dark:text-blue-100">
           {label}
+          {streakBadge}
         </h3>
       )}
       <div className="flex flex-col gap-1">
@@ -59,6 +74,11 @@ interface CourtViewProps {
 }
 
 export function CourtView({ court, selectedWinnerTeamId, onSelectWinner }: CourtViewProps) {
+  const state = useGameState();
+  // The streak only applies to Court 1 (see updateWins in gameLogic.ts -
+  // it's the only court with a consecutive-win cap).
+  const court1Streak = court.index === 1 ? state.court1WinStreak : 0;
+
   return (
     <div
       className={
@@ -73,12 +93,14 @@ export function CourtView({ court, selectedWinnerTeamId, onSelectWinner }: Court
           size={court.sizePerTeam}
           isWinnerPick={selectedWinnerTeamId === court.teamAId}
           onPickWinner={onSelectWinner ? () => onSelectWinner(court.teamAId) : undefined}
+          winStreak={state.court1WinnerTeamId === court.teamAId ? court1Streak : 0}
         />
         <TeamColumn
           teamId={court.teamBId}
           size={court.sizePerTeam}
           isWinnerPick={selectedWinnerTeamId === court.teamBId}
           onPickWinner={onSelectWinner ? () => onSelectWinner(court.teamBId) : undefined}
+          winStreak={state.court1WinnerTeamId === court.teamBId ? court1Streak : 0}
         />
       </div>
     </div>

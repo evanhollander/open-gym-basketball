@@ -21,7 +21,7 @@ export function BenchList() {
       <h2 className="mb-2 text-center text-lg font-semibold">Bench</h2>
       <div className="flex flex-col gap-1">
         {benchPlayers.map((p) => (
-          <PlayerCard key={p.id} player={p} />
+          <PlayerCard key={p.id} player={p} isDue={p.sitCount >= state.maxSit} />
         ))}
         {benchPlayers.length === 0 && (
           <p className="py-2 text-center text-sm text-gray-500 dark:text-gray-400">
