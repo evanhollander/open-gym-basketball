@@ -45,6 +45,7 @@ export function createInitialState(): GameState {
     round: 0,
     maxSit: 1,
     maxConsecutiveWins: 3,
+    maxSingleCourtPlayers: 13,
     court1WinnerTeamId: null,
     court1WinStreak: 0,
     lastSatPlayerIds: [],

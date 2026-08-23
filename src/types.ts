@@ -95,6 +95,14 @@ export interface GameState {
   /** How many rounds in a row a team can keep winning Court 1 before it's
    * forced to sit out, win or not - stops one team hogging the main court. */
   maxConsecutiveWins: number;
+  /** Court 2 only engages once the player count exceeds this - below it,
+   * everyone stays on a single (fuller) court rather than splitting into
+   * two smaller games. Adjustable 3-13, default 13. Note: the actual
+   * effect is also bounded by Minimum Game - you can't split into two
+   * valid games below whatever that format requires (e.g. two 3v3 courts
+   * need 12 players minimum), so lowering this below that floor has no
+   * further effect. */
+  maxSingleCourtPlayers: number;
   court1WinnerTeamId: string | null;
   court1WinStreak: number;
   /** Ids of players who sat the previous round, most-recent round first,
@@ -124,6 +132,7 @@ export type Action =
   | { type: 'SET_MAX_TEAM_SIZE'; maxTeamSize: GameType | null }
   | { type: 'SET_MAX_SIT'; maxSit: number }
   | { type: 'SET_MAX_CONSECUTIVE_WINS'; value: number }
+  | { type: 'SET_MAX_SINGLE_COURT_PLAYERS'; value: number }
   | { type: 'ASSIGN_TEAMS'; keepTeams?: boolean }
   | { type: 'RESHUFFLE_TEAMS' }
   | { type: 'SUBMIT_WINNERS'; winners: Record<string, string> } // courtId -> winning teamId

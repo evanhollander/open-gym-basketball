@@ -139,12 +139,21 @@ function soloCourtSize(players: number): number {
   return 5;
 }
 
-// Court 1 and Court 2 sizes once Court 2 is actually warranted. Only ever
-// called for players >= 14 (see distributePlayers) - below that, staying
-// on a single fuller court beats splitting into two smaller ones (e.g. two
-// 3v3s), so Court 2 stays off entirely and Court 1 just uses the same
-// single-court sizing as if only 1 court existed. Court 1 defaults to a
-// full 5v5 within this table and only shrinks when a band below says so.
+// Court 1 and Court 2 sizes once Court 2 is actually warranted (see the
+// maxSingleCourtPlayers gate in distributePlayers) - below that gate,
+// staying on a single fuller court beats splitting into two smaller ones
+// (e.g. two 3v3s), so Court 2 stays off entirely and Court 1 just uses the
+// same single-court sizing as if only 1 court existed. Court 1 defaults to
+// a full 5v5 within this table and only shrinks when a band below says so.
+//
+// The 12-13 -> (3,3) band for gameType 3 only ever fires if
+// maxSingleCourtPlayers has been lowered below its default of 13 (its
+// default gate means players < 14 never reach this function at all) - it
+// exists so lowering that setting to 12 actually does something, since 12
+// is the true minimum for two valid 3v3 courts (2 courts x 3v3 x 2 teams).
+// Lowering the setting further, to 4-11, has no additional effect: there
+// still aren't enough players for two valid games at any gameType's
+// minimum, so Court 1 stays solo regardless of the gate.
 function twoCourtSizes(gameType: GameType, players: number): { court1: number; court2: number } {
   let court1 = 5;
   let court2 = 0;
@@ -166,6 +175,7 @@ function twoCourtSizes(gameType: GameType, players: number): { court1: number; c
       break;
     case 3: // 3v3 minimum (default)
     default:
+      if (players >= 12 && players < 14) { court1 = 3; court2 = 3; }
       if (players >= 14 && players < 16) { court1 = 4; court2 = 3; }
       if (players >= 16 && players < 18) { court1 = 4; court2 = 4; }
       if (players >= 18 && players < 20) { court1 = 5; court2 = 4; }
@@ -190,15 +200,15 @@ function fourthCourtSize(players: number): number {
   return 0;
 }
 
-// Below this many players, stay on a single (fuller) court even if a 2nd
-// one is available (numCourts >= 2) - splitting into two smaller games
-// (e.g. two 3v3s at 12 players) is worse than one bigger one (5v5, with a
-// few sitting). At 14, there's enough to make a real second game (4v4 +
-// 3v3) worthwhile.
-const MIN_PLAYERS_FOR_SECOND_COURT = 14;
-
 /**
  * Computes players-per-team for each of the 4 courts.
+ *
+ * `maxSingleCourtPlayers` (new, non-original setting, default 13): Court 2
+ * stays off - everyone plays a single, fuller game on Court 1 - until the
+ * player count exceeds this. Splitting into two smaller games (e.g. two
+ * 3v3s at 12 players) is worse than one bigger one (5v5, with a few
+ * sitting) below that point. See twoCourtSizes for how this interacts with
+ * Minimum Game's own floor.
  *
  * `maxTeamSize` is the new (non-original) cap: after the bands above pick
  * the "maximize simultaneous players" size for each active court, clamp it
@@ -211,13 +221,14 @@ export function distributePlayers(
   players: number,
   gameType: GameType,
   maxTeamSize: GameType | null,
+  maxSingleCourtPlayers: number,
 ): CourtSizes {
   // Court 1 always starts from single-court sizing (full 5v5, shrinking
   // only for small groups - see soloCourtSize). Court 2 only overrides
   // this once there are enough players to be worth splitting for.
   const sizes: CourtSizes = { court1: soloCourtSize(players), court2: 0, court3: 0, court4: 0 };
 
-  if (numCourts >= 2 && players >= MIN_PLAYERS_FOR_SECOND_COURT) {
+  if (numCourts >= 2 && players > maxSingleCourtPlayers) {
     const two = twoCourtSizes(gameType, players);
     sizes.court1 = two.court1;
     sizes.court2 = two.court2;
@@ -238,7 +249,13 @@ export function distributePlayers(
 
 /** Recomputes court sizes/active flags from the current roster and settings. */
 function applyDistribution(state: GameState): GameState {
-  const sizes = distributePlayers(state.numCourts, state.players.length, state.gameType, state.maxTeamSize);
+  const sizes = distributePlayers(
+    state.numCourts,
+    state.players.length,
+    state.gameType,
+    state.maxTeamSize,
+    state.maxSingleCourtPlayers,
+  );
   const sizeByIndex: Record<1 | 2 | 3 | 4, number> = {
     1: sizes.court1,
     2: sizes.court2,

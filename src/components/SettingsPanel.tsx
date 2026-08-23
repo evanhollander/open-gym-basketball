@@ -87,6 +87,29 @@ export function SettingsPanel() {
       </div>
 
       <div>
+        <label htmlFor="maxSingleCourtPlayers" className="mb-1 block font-medium">
+          Max Players on 1 Court
+        </label>
+        <select
+          id="maxSingleCourtPlayers"
+          value={state.maxSingleCourtPlayers}
+          onChange={(e) => dispatch({ type: 'SET_MAX_SINGLE_COURT_PLAYERS', value: Number(e.target.value) })}
+          className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+        >
+          {Array.from({ length: 11 }, (_, i) => i + 3).map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Court 2 stays off until there are more players than this - a single fuller game beats splitting
+          into two smaller ones. Only takes effect once there are enough players for two games at the
+          Minimum Game format above (e.g. two 3v3 courts need 12+ players).
+        </p>
+      </div>
+
+      <div>
         <label htmlFor="maxConsecutiveWins" className="mb-1 block font-medium">
           Winner Stays On (max consecutive wins)
         </label>
