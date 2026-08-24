@@ -150,4 +150,39 @@ describe('assignTeams', () => {
     expect(court2.active).toBe(false);
     expect(court2.sizePerTeam).toBe(0);
   });
+
+  it('always picks the more-sat-out candidate over one with fewer sits, within the same eligibility tier', () => {
+    // Regression: candidates within a fallback tier used to be pure-shuffled
+    // regardless of sit-count, so someone who'd sat 10 times could lose out
+    // to someone who'd never sat, purely by luck. Set up two 'holding'
+    // players (only reachable via the widest tier) with very different
+    // sit-counts competing for one open slot, and confirm the higher
+    // sit-count one wins every time, not just on average.
+    let state = withPlayers(7); // 1 court, 3v3 (soloCourtSize(7) === 3)
+    const [p1, p2, p3, p4, p5, wellRested, dueForAges] = state.players;
+    const teamAId = 'team-1';
+    const teamBId = 'team-2';
+    state = {
+      ...state,
+      teams: {
+        ...state.teams,
+        [teamAId]: { ...state.teams[teamAId], slots: [p1.id, p2.id, p3.id, null, null] },
+        [teamBId]: { ...state.teams[teamBId], slots: [p4.id, p5.id, null, null, null] },
+      },
+      players: state.players.map((p) => {
+        if (p.id === p1.id || p.id === p2.id || p.id === p3.id) return { ...p, status: 'team', teamId: teamAId };
+        if (p.id === p4.id || p.id === p5.id) return { ...p, status: 'team', teamId: teamBId };
+        if (p.id === wellRested.id) return { ...p, status: 'holding', sitCount: 0 };
+        if (p.id === dueForAges.id) return { ...p, status: 'holding', sitCount: 10 };
+        return p;
+      }),
+    };
+
+    for (let i = 0; i < 20; i++) {
+      const result = assignTeams(state, false);
+      const teamBSlots = result.teams[teamBId].slots;
+      expect(teamBSlots).toContain(dueForAges.id);
+      expect(teamBSlots).not.toContain(wellRested.id);
+    }
+  });
 });

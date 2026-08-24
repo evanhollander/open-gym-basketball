@@ -275,12 +275,14 @@ function applyDistribution(state: GameState): GameState {
 // chain. Each of those was a progressively wider pool of "who's allowed to
 // play next", tried in order until one had candidates. Instead of the
 // original's global mutable array + lazy re-fill-on-exhaustion, this builds
-// one flat, priority-ordered, shuffled list up front: first everyone from
-// the narrowest eligible tier (shuffled), then whoever the next tier adds
-// that the first tier didn't already include (shuffled), and so on. Reading
-// through that list in order is equivalent to the original's "try this pool,
-// fall back to the next one when it runs dry" behavior, just without having
-// to re-derive the fallback pool mid-loop.
+// one flat, priority-ordered list up front: first everyone from the
+// narrowest eligible tier, then whoever the next tier adds that the first
+// tier didn't already include, and so on. Reading through that list in
+// order is equivalent to the original's "try this pool, fall back to the
+// next one when it runs dry" behavior, just without having to re-derive the
+// fallback pool mid-loop. Within each tier, players are ordered by sit-count
+// (most-sat-out first, see orderByFairness) rather than pure chance -
+// randomness only ever breaks a genuine tie between equally-due players.
 
 export function fisherYatesShuffle<T>(items: T[], rng: () => number = Math.random): T[] {
   const result = [...items];
@@ -289,6 +291,36 @@ export function fisherYatesShuffle<T>(items: T[], rng: () => number = Math.rando
     [result[i], result[j]] = [result[j], result[i]];
   }
   return result;
+}
+
+/**
+ * Orders players within one eligibility tier by how many rounds they've
+ * sat out, most first - so "who actually gets pulled off the bench first"
+ * is decided by sit-count whenever it differs, not left to chance. Within
+ * a fallback tier (see buildCandidateOrder) sit-counts can genuinely
+ * differ - e.g. someone who's sat 3 times can end up in the same wider
+ * pool as someone just vacated from a losing team who's sat 0 times - and
+ * shuffling them together would let the person who's sat less get picked
+ * ahead of someone who's clearly more due, purely by luck.
+ *
+ * Players with the *same* sit-count are shuffled against each other, not
+ * ranked further: they became eligible from the same event (e.g. an entire
+ * losing team benched together) and are genuinely equally deserving right
+ * now - there's no fairness signal left to break that tie with. Whoever
+ * loses that shuffle isn't actually worse off for long, though: they stay
+ * on the bench, their sit-count ticks up past the others' next round, and
+ * that makes them the clear next pick - the same rough correction a
+ * human game manager would make by remembering "I sat them last time."
+ */
+function orderByFairness(players: Player[], rng: () => number = Math.random): Player[] {
+  const bySitCount = new Map<number, Player[]>();
+  for (const p of players) {
+    const group = bySitCount.get(p.sitCount);
+    if (group) group.push(p);
+    else bySitCount.set(p.sitCount, [p]);
+  }
+  const descendingSitCounts = [...bySitCount.keys()].sort((a, b) => b - a);
+  return descendingSitCounts.flatMap((count) => fisherYatesShuffle(bySitCount.get(count)!, rng));
 }
 
 const BENCH_STATUSES: PlayerStatus[] = ['sitting', 'none', 'next'];
@@ -332,7 +364,7 @@ function buildCandidateOrder(state: GameState, keepTeams: boolean): Player[] {
   const ordered: Player[] = [];
   for (const pool of tierPools) {
     const fresh = pool.filter((p) => !seen.has(p.id));
-    for (const p of fisherYatesShuffle(fresh)) {
+    for (const p of orderByFairness(fresh)) {
       seen.add(p.id);
       ordered.push(p);
     }
