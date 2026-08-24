@@ -13,6 +13,15 @@ interface TeamColumnProps {
   winStreak?: number;
 }
 
+// Fixed (not app-theme-dependent) colors matching real pinny/jersey colors,
+// so "White"/"Dark" is visually obvious at a glance courtside, not just a
+// text label - independent of the app's own light/dark UI theme, since
+// "Dark team" and "dark mode" are unrelated axes.
+const SIDE_STYLES = {
+  white: 'bg-white text-gray-900 ring-2 ring-gray-300 active:bg-gray-100',
+  dark: 'bg-gray-900 text-white ring-2 ring-gray-700 active:bg-gray-800',
+} as const;
+
 function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: TeamColumnProps) {
   const state = useGameState();
   const team = getTeam(state, teamId)!;
@@ -41,9 +50,7 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
           aria-pressed={isWinnerPick}
           className={
             'mb-1 w-full rounded px-2 py-1.5 text-center text-sm font-semibold transition-colors ' +
-            (isWinnerPick
-              ? 'bg-green-600 text-white'
-              : 'bg-blue-100 text-blue-950 active:bg-blue-200 dark:bg-blue-950 dark:text-blue-100 dark:active:bg-blue-900')
+            (isWinnerPick ? 'bg-green-600 text-white' : SIDE_STYLES[team.side])
           }
         >
           {label}
@@ -51,7 +58,7 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
           {streakBadge}
         </button>
       ) : (
-        <h3 className="mb-1 rounded bg-blue-100 px-2 py-1 text-center text-sm font-semibold text-blue-950 dark:bg-blue-950 dark:text-blue-100">
+        <h3 className={'mb-1 rounded px-2 py-1.5 text-center text-sm font-semibold ' + SIDE_STYLES[team.side]}>
           {label}
           {streakBadge}
         </h3>
