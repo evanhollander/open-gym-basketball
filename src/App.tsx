@@ -3,6 +3,7 @@ import { GameStateProvider } from './state/context';
 import { RosterPanel } from './components/RosterPanel';
 import { RotationBoard } from './components/RotationBoard';
 import { SettingsPanel } from './components/SettingsPanel';
+import { ThemeManager } from './components/ThemeManager';
 
 type Tab = 'roster' | 'courts' | 'settings';
 
@@ -41,6 +42,7 @@ export default function App() {
 
   return (
     <GameStateProvider>
+      <ThemeManager />
       <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
         <h1 className="bg-blue-100 py-3 text-center text-2xl font-semibold text-blue-950 dark:bg-blue-950 dark:text-blue-100">
           Open Gym Basketball

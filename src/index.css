@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+/* Default Tailwind v4 dark: variant follows prefers-color-scheme only. The
+   Settings page's Light/Dark/System control needs to override that with a
+   manual choice, so dark: also responds to a .dark class on <html> (see
+   ThemeManager.tsx, which applies it) - "system" just means no override
+   class is added, falling back to the media query below on its own. */
+@custom-variant dark (&:where(.dark, .dark *));

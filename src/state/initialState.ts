@@ -51,5 +51,6 @@ export function createInitialState(): GameState {
     lastSatPlayerIds: [],
     sittingOrder: [],
     lastError: null,
+    theme: 'system',
   };
 }

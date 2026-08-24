@@ -115,7 +115,14 @@ export interface GameState {
    * "need at least 6 players"), shown as a toast instead of the original's
    * alert() popups. Cleared on the next successful action. */
   lastError: string | null;
+  /** UI preference, not game data - stored here anyway since it's the one
+   * blob already persisted to localStorage. 'system' (default) follows the
+   * OS/browser's prefers-color-scheme; 'light'/'dark' force it regardless -
+   * see ThemeManager.tsx for where this actually gets applied. */
+  theme: Theme;
 }
+
+export type Theme = 'light' | 'dark' | 'system';
 
 /** Where a dragged player card was dropped. */
 export type DropTarget =
@@ -133,6 +140,7 @@ export type Action =
   | { type: 'SET_MAX_SIT'; maxSit: number }
   | { type: 'SET_MAX_CONSECUTIVE_WINS'; value: number }
   | { type: 'SET_MAX_SINGLE_COURT_PLAYERS'; value: number }
+  | { type: 'SET_THEME'; theme: Theme }
   | { type: 'ASSIGN_TEAMS'; keepTeams?: boolean }
   | { type: 'RESHUFFLE_TEAMS' }
   | { type: 'SUBMIT_WINNERS'; winners: Record<string, string> } // courtId -> winning teamId

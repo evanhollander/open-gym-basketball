@@ -1,5 +1,5 @@
 import { useGameDispatch, useGameState } from '../state/context';
-import type { GameType } from '../types';
+import type { GameType, Theme } from '../types';
 
 const GAME_TYPE_OPTIONS: { value: GameType; label: string }[] = [
   { value: 2, label: '2 v 2' },
@@ -8,12 +8,39 @@ const GAME_TYPE_OPTIONS: { value: GameType; label: string }[] = [
   { value: 5, label: '5 v 5' },
 ];
 
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
 export function SettingsPanel() {
   const state = useGameState();
   const dispatch = useGameDispatch();
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
+      <div>
+        <label htmlFor="theme" className="mb-1 block font-medium">
+          Appearance
+        </label>
+        <select
+          id="theme"
+          value={state.theme}
+          onChange={(e) => dispatch({ type: 'SET_THEME', theme: e.target.value as Theme })}
+          className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+        >
+          {THEME_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          "System" follows your device's light/dark setting automatically.
+        </p>
+      </div>
+
       <div>
         <label htmlFor="gameType" className="mb-1 block font-medium">
           Minimum Game

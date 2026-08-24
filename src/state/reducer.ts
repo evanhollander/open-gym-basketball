@@ -29,6 +29,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return { ...state, maxConsecutiveWins: action.value, lastError: null };
       case 'SET_MAX_SINGLE_COURT_PLAYERS':
         return { ...state, maxSingleCourtPlayers: action.value, lastError: null };
+      case 'SET_THEME':
+        return { ...state, theme: action.theme, lastError: null };
 
       case 'ASSIGN_TEAMS':
         return gameLogic.assignTeams(state, !!action.keepTeams);
