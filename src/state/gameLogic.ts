@@ -965,32 +965,29 @@ export function getTeam(state: GameState, teamId: string): Team | undefined {
 }
 
 /**
- * The live version of the isRiskyStreakSetup guardrail: has the fairness
- * gap it warns about actually happened just now? True when someone on the
- * bench has sat 2+ times while a player on Court 1's currently-protected
- * winning team hasn't sat even once. Returns the specific pair a swap would
- * fix (see the Auto-balance notice in RotationBoard) so the caller doesn't
- * have to re-derive who; null when there's nothing to flag, including
- * whenever no team is currently mid-win-streak.
+ * The live version of the isRiskyStreakSetup guardrail: has a fairness gap
+ * actually happened just now? True when someone on the bench has sat 2+
+ * times while some currently-playing player, on ANY active court, hasn't
+ * sat even once. Deliberately not limited to Court 1's win-streak holder -
+ * the same gap shows up whenever a player is effectively "protected" from
+ * ever being reconsidered, which also happens to a team that cascades
+ * winner-to-winner up through Courts 4->3->2->1 (no streak cap applies to
+ * that climb, only to Court 1's own win-streak once a team gets there), or
+ * after a manual drag-and-drop keeps someone on a team round after round.
+ * Returns the specific pair a swap would fix (see the Auto-balance notice
+ * in RotationBoard) so the caller doesn't have to re-derive who; null when
+ * there's nothing to flag.
  */
 export function findUnfairSecondSit(
   state: GameState,
-): { repeatSitterId: string; winningPlayerId: string } | null {
-  const winnerTeamId = state.court1WinnerTeamId;
-  if (!winnerTeamId) return null;
-  const winnerTeam = state.teams[winnerTeamId];
-  if (!winnerTeam) return null;
-
-  const neverSatOnWinner = winnerTeam.slots
-    .filter((id): id is string => id !== null)
-    .map((id) => getPlayer(state, id))
-    .filter((p): p is Player => !!p && p.sitCount === 0);
-  if (neverSatOnWinner.length === 0) return null;
+): { repeatSitterId: string; neverSatPlayerId: string } | null {
+  const neverSatPlaying = state.players.find((p) => p.status === 'team' && p.sitCount === 0);
+  if (!neverSatPlaying) return null;
 
   const repeatSitter = state.sittingOrder
     .map((id) => getPlayer(state, id))
     .find((p): p is Player => !!p && p.sitCount >= 2);
   if (!repeatSitter) return null;
 
-  return { repeatSitterId: repeatSitter.id, winningPlayerId: neverSatOnWinner[0].id };
+  return { repeatSitterId: repeatSitter.id, neverSatPlayerId: neverSatPlaying.id };
 }

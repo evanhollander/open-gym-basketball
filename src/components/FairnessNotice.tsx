@@ -16,19 +16,19 @@ export function FairnessNotice() {
   if (!unfairPair) return null;
 
   const repeatSitter = getPlayer(state, unfairPair.repeatSitterId);
-  const winningPlayer = getPlayer(state, unfairPair.winningPlayerId);
-  if (!repeatSitter || !winningPlayer) return null;
+  const neverSatPlayer = getPlayer(state, unfairPair.neverSatPlayerId);
+  if (!repeatSitter || !neverSatPlayer) return null;
 
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
       <p>
-        <strong>{repeatSitter.name}</strong> is sitting again while <strong>{winningPlayer.name}</strong>'s
-        team hasn't sat at all. Swap them, or handle it yourself with drag-and-drop.
+        <strong>{repeatSitter.name}</strong> is sitting again while <strong>{neverSatPlayer.name}</strong> hasn't
+        sat at all yet. Swap them, or handle it yourself with drag-and-drop.
       </p>
       <button
         type="button"
         onClick={() =>
-          dispatch({ type: 'SWAP_PLAYERS', playerAId: unfairPair.repeatSitterId, playerBId: unfairPair.winningPlayerId })
+          dispatch({ type: 'SWAP_PLAYERS', playerAId: unfairPair.repeatSitterId, playerBId: unfairPair.neverSatPlayerId })
         }
         className="shrink-0 rounded bg-amber-600 px-3 py-1 font-medium text-white active:bg-amber-700"
       >

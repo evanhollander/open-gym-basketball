@@ -34,12 +34,12 @@ describe('isRiskyStreakSetup', () => {
 });
 
 describe('findUnfairSecondSit', () => {
-  it('returns null when no team is on a win streak', () => {
+  it('returns null when nobody is currently on a team', () => {
     const state = withPlayers(13);
     expect(findUnfairSecondSit(state)).toBeNull();
   });
 
-  it('flags a bench player with 2+ sits while the protected winning team has a never-sat player', () => {
+  it('flags a bench player with 2+ sits while a Court 1 win-streak holder has a never-sat player', () => {
     let state = withPlayers(13);
     const [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, bench1, bench2, repeatSitter] = state.players;
     const winningTeamId = 'team-1';
@@ -65,10 +65,44 @@ describe('findUnfairSecondSit', () => {
     const result = findUnfairSecondSit(state);
     expect(result).not.toBeNull();
     expect(result?.repeatSitterId).toBe(repeatSitter.id);
-    expect([p1.id, p2.id, p3.id, p4.id, p5.id]).toContain(result?.winningPlayerId);
+    expect([p1.id, p2.id, p3.id, p4.id, p5.id]).toContain(result?.neverSatPlayerId);
   });
 
-  it('returns null once every player on the winning team has sat at least once', () => {
+  it('also flags a team that cascaded up through Courts 4->3->2 without a Court 1 win streak', () => {
+    // Regression: the original check only looked at court1WinnerTeamId's
+    // roster, so a team riding an unbroken string of wins on lower courts
+    // (no streak cap applies there - only Court 1 tracks/caps a streak)
+    // could hoard never-sat players indefinitely without ever tripping this
+    // notice, even while someone else was forced to sit a 2nd+ time.
+    let state = withPlayers(20);
+    state = { ...state, numCourts: 4 };
+    const [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, bench1, bench2, repeatSitter] = state.players;
+    const cascadedTeamId = 'team-7'; // Court 4's team A, never touched the bench
+    const opponentTeamId = 'team-8';
+    state = {
+      ...state,
+      court1WinnerTeamId: null, // no Court 1 streak at all
+      sittingOrder: [bench1.id, bench2.id, repeatSitter.id],
+      teams: {
+        ...state.teams,
+        [cascadedTeamId]: { ...state.teams[cascadedTeamId], slots: [p1.id, p2.id, null, null, null] },
+        [opponentTeamId]: { ...state.teams[opponentTeamId], slots: [p3.id, p4.id, null, null, null] },
+      },
+      players: state.players.map((p) => {
+        if ([p1, p2].some((w) => w.id === p.id)) return { ...p, status: 'team', teamId: cascadedTeamId, sitCount: 0 };
+        if ([p3, p4, p5, p6, p7, p8, p9, p10].some((w) => w.id === p.id)) return { ...p, status: 'team' };
+        if (p.id === repeatSitter.id) return { ...p, status: 'sitting', sitCount: 2 };
+        return { ...p, status: 'sitting' };
+      }),
+    };
+
+    const result = findUnfairSecondSit(state);
+    expect(result).not.toBeNull();
+    expect(result?.repeatSitterId).toBe(repeatSitter.id);
+    expect([p1.id, p2.id]).toContain(result?.neverSatPlayerId);
+  });
+
+  it('returns null once every currently-playing player has sat at least once', () => {
     let state = withPlayers(13);
     const [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, bench1, bench2, repeatSitter] = state.players;
     const winningTeamId = 'team-1';
@@ -85,7 +119,7 @@ describe('findUnfairSecondSit', () => {
       },
       players: state.players.map((p) => {
         if ([p1, p2, p3, p4, p5].some((w) => w.id === p.id)) return { ...p, status: 'team', teamId: winningTeamId, sitCount: 1 };
-        if ([p6, p7, p8, p9, p10].some((w) => w.id === p.id)) return { ...p, status: 'team', teamId: losingTeamId };
+        if ([p6, p7, p8, p9, p10].some((w) => w.id === p.id)) return { ...p, status: 'team', teamId: losingTeamId, sitCount: 1 };
         if (p.id === repeatSitter.id) return { ...p, status: 'sitting', sitCount: 2 };
         return { ...p, status: 'sitting' };
       }),
