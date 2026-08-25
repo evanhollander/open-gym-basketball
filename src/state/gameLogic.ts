@@ -247,6 +247,29 @@ export function distributePlayers(
   return sizes;
 }
 
+/**
+ * Guardrail check offered on "Assign Teams": with a single, mostly-full
+ * court (bench smaller than a full team) and a high Winner Stays On cap, the
+ * losing side's revolving door can't be fully refilled from the bench alone
+ * - some just-benched player is always recycled straight back in. A long win
+ * streak compounds that recycling round after round until someone sits
+ * twice before the protected winning team has sat even once. This doesn't
+ * fire for multi-court setups or a big-enough bench, since the bench alone
+ * can cover a full team swap there and the tension doesn't come up.
+ */
+export function isRiskyStreakSetup(state: GameState): boolean {
+  if (state.numCourts !== 1 || state.maxConsecutiveWins <= 2) return false;
+  const sizes = distributePlayers(
+    state.numCourts,
+    state.players.length,
+    state.gameType,
+    state.maxTeamSize,
+    state.maxSingleCourtPlayers,
+  );
+  const bench = state.players.length - sizes.court1 * 2;
+  return bench > 0 && bench < sizes.court1;
+}
+
 /** Recomputes court sizes/active flags from the current roster and settings. */
 function applyDistribution(state: GameState): GameState {
   const sizes = distributePlayers(
@@ -939,4 +962,35 @@ export function getPlayer(state: GameState, playerId: string): Player | undefine
 
 export function getTeam(state: GameState, teamId: string): Team | undefined {
   return state.teams[teamId];
+}
+
+/**
+ * The live version of the isRiskyStreakSetup guardrail: has the fairness
+ * gap it warns about actually happened just now? True when someone on the
+ * bench has sat 2+ times while a player on Court 1's currently-protected
+ * winning team hasn't sat even once. Returns the specific pair a swap would
+ * fix (see the Auto-balance notice in RotationBoard) so the caller doesn't
+ * have to re-derive who; null when there's nothing to flag, including
+ * whenever no team is currently mid-win-streak.
+ */
+export function findUnfairSecondSit(
+  state: GameState,
+): { repeatSitterId: string; winningPlayerId: string } | null {
+  const winnerTeamId = state.court1WinnerTeamId;
+  if (!winnerTeamId) return null;
+  const winnerTeam = state.teams[winnerTeamId];
+  if (!winnerTeam) return null;
+
+  const neverSatOnWinner = winnerTeam.slots
+    .filter((id): id is string => id !== null)
+    .map((id) => getPlayer(state, id))
+    .filter((p): p is Player => !!p && p.sitCount === 0);
+  if (neverSatOnWinner.length === 0) return null;
+
+  const repeatSitter = state.sittingOrder
+    .map((id) => getPlayer(state, id))
+    .find((p): p is Player => !!p && p.sitCount >= 2);
+  if (!repeatSitter) return null;
+
+  return { repeatSitterId: repeatSitter.id, winningPlayerId: neverSatOnWinner[0].id };
 }

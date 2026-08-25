@@ -14,6 +14,7 @@ import { useGameDispatch, useGameState } from '../state/context';
 import { getActiveCourts, getPlayer } from '../state/gameLogic';
 import { resolveDropAction } from '../dragDrop';
 import { GameControls } from './GameControls';
+import { FairnessNotice } from './FairnessNotice';
 import { CourtView } from './CourtView';
 import { BenchList } from './BenchList';
 import { PlayerCard } from './PlayerCard';
@@ -84,6 +85,7 @@ export function RotationBoard() {
       <div className="mb-4">
         <GameControls />
       </div>
+      <FairnessNotice />
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className={'mx-auto mt-4 ' + (isMultiCourt ? 'max-w-4xl' : 'max-w-md')}>
           <div className={'grid grid-cols-1 gap-4' + (isMultiCourt ? ' md:grid-cols-2' : '')}>

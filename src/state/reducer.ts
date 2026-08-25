@@ -47,6 +47,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
       case 'MOVE_PLAYER':
         return gameLogic.movePlayer(state, action.playerId, action.target);
+      case 'SWAP_PLAYERS':
+        return gameLogic.swapPlayers(state, action.playerAId, action.playerBId);
 
       default:
         return state;

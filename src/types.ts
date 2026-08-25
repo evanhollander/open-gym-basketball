@@ -145,6 +145,7 @@ export type Action =
   | { type: 'RESHUFFLE_TEAMS' }
   | { type: 'SUBMIT_WINNERS'; winners: Record<string, string> } // courtId -> winning teamId
   | { type: 'MOVE_PLAYER'; playerId: string; target: DropTarget }
+  | { type: 'SWAP_PLAYERS'; playerAId: string; playerBId: string }
   | { type: 'CLEAR_TEAMS' }
   | { type: 'CLEAR_SAT' }
   | { type: 'UPDATE_ROUND' }
