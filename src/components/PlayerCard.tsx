@@ -39,7 +39,7 @@ export function PlayerCard({ player, isDue }: { player: Player; isDue?: boolean 
         (isDragging ? 'opacity-30' : 'cursor-grab active:cursor-grabbing')
       }
     >
-      <span className="block truncate">
+      <span className="block truncate text-base font-semibold">
         {player.name}
         {isDue && <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">next up</span>}
       </span>
