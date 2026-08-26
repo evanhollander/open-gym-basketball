@@ -81,7 +81,7 @@ export function RotationBoard() {
   const isMultiCourt = activeCourts.length > 1;
 
   return (
-    <section className="mx-auto w-full max-w-4xl p-4 lg:max-w-5xl">
+    <section className="mx-auto w-full max-w-4xl p-4 lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl">
       <div className="mb-4">
         <GameControls />
       </div>
@@ -91,9 +91,12 @@ export function RotationBoard() {
             width even on a big screen (a lone court stretched full-width
             reads worse than a lone court sized like the multi-court case) -
             just steps up gradually with viewport size instead of staying
-            phone-width on a Chromebook/desktop. Multi-court already fills
-            the 2-column grid, so it only needs the outer cap to grow. */}
-        <div className={'mx-auto mt-4 ' + (isMultiCourt ? 'max-w-4xl lg:max-w-5xl' : 'max-w-md md:max-w-xl lg:max-w-2xl')}>
+            phone-width on a Chromebook/desktop. Multi-court matches the
+            outer section's cap at every step so it actually fills a wide
+            monitor instead of stopping short and leaving a big empty
+            margin (see the 2603bf7 follow-up: 5xl alone left ~490px of
+            unused space per side on a typical wide external display). */}
+        <div className={'mx-auto mt-4 ' + (isMultiCourt ? 'max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl' : 'max-w-md md:max-w-xl lg:max-w-2xl xl:max-w-3xl')}>
           <div className={'grid grid-cols-1 gap-4' + (isMultiCourt ? ' md:grid-cols-2' : '')}>
             {activeCourts.map((court) => (
               <CourtView
