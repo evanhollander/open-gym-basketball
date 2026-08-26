@@ -14,17 +14,17 @@ export function BenchList() {
     <div
       ref={setNodeRef}
       className={
-        'rounded border p-3 transition-colors ' +
+        'rounded border p-3 transition-colors sm:p-4 lg:p-5 ' +
         (isOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : 'border-gray-300 dark:border-gray-600')
       }
     >
-      <h2 className="mb-2 text-center text-lg font-semibold">Bench</h2>
-      <div className="flex flex-col gap-1">
+      <h2 className="mb-2 text-center text-lg font-semibold sm:text-xl">Bench</h2>
+      <div className="flex flex-col gap-1 sm:gap-1.5">
         {benchPlayers.map((p) => (
           <PlayerCard key={p.id} player={p} isDue={p.sitCount >= state.maxSit} />
         ))}
         {benchPlayers.length === 0 && (
-          <p className="py-2 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p className="py-2 text-center text-sm text-gray-500 sm:text-base dark:text-gray-400">
             Nobody sitting - drag a player here to bench them.
           </p>
         )}

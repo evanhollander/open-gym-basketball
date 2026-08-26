@@ -49,7 +49,7 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
           onClick={onPickWinner}
           aria-pressed={isWinnerPick}
           className={
-            'mb-1 w-full rounded px-2 py-1.5 text-center text-sm font-semibold transition-colors ' +
+            'mb-1 w-full rounded px-2 py-1.5 text-center text-sm font-semibold transition-colors sm:px-3 sm:py-2 sm:text-base ' +
             (isWinnerPick ? 'bg-green-600 text-white' : SIDE_STYLES[team.side])
           }
         >
@@ -58,12 +58,17 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
           {streakBadge}
         </button>
       ) : (
-        <h3 className={'mb-1 rounded px-2 py-1.5 text-center text-sm font-semibold ' + SIDE_STYLES[team.side]}>
+        <h3
+          className={
+            'mb-1 rounded px-2 py-1.5 text-center text-sm font-semibold sm:px-3 sm:py-2 sm:text-base ' +
+            SIDE_STYLES[team.side]
+          }
+        >
           {label}
           {streakBadge}
         </h3>
       )}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 sm:gap-1.5">
         {team.slots.slice(0, size).map((playerId, i) => (
           <TeamSlot key={i} teamId={teamId} slotIndex={i} playerId={playerId} />
         ))}
@@ -89,12 +94,12 @@ export function CourtView({ court, selectedWinnerTeamId, onSelectWinner }: Court
   return (
     <div
       className={
-        'rounded border p-3 transition-colors ' +
+        'rounded border p-3 transition-colors sm:p-4 lg:p-5 ' +
         (selectedWinnerTeamId ? 'border-green-400 dark:border-green-700' : 'border-gray-300 dark:border-gray-600')
       }
     >
-      <h2 className="mb-2 text-center text-lg font-semibold">Court {court.index}</h2>
-      <div className="flex gap-2">
+      <h2 className="mb-2 text-center text-lg font-semibold sm:text-xl">Court {court.index}</h2>
+      <div className="flex gap-2 sm:gap-3 lg:gap-4">
         <TeamColumn
           teamId={court.teamAId}
           size={court.sizePerTeam}

@@ -31,7 +31,10 @@ export function PlayerCard({ player, isDue }: { player: Player; isDue?: boolean 
       // focus-visible ring is the keyboard-drag entry point's only visual
       // cue (dnd-kit's KeyboardSensor drags via Tab + Space/arrows/Space).
       className={
-        'relative touch-none select-none rounded px-2 py-1.5 pr-6 text-sm shadow-sm ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ' +
+        // Sized for a phone by default; sm:/lg: steps bump text and padding
+        // up on tablet/desktop/Chromebook screens instead of leaving a
+        // phone-sized card centered in a bunch of unused space.
+        'relative touch-none select-none rounded px-2 py-1.5 pr-6 text-sm shadow-sm ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-3 sm:py-2 sm:pr-8 ' +
         (isDue
           ? 'bg-blue-50 ring-blue-300 dark:bg-blue-950 dark:ring-blue-800'
           : 'bg-white ring-gray-200 dark:bg-gray-800 dark:ring-gray-700') +
@@ -39,13 +42,13 @@ export function PlayerCard({ player, isDue }: { player: Player; isDue?: boolean 
         (isDragging ? 'opacity-30' : 'cursor-grab active:cursor-grabbing')
       }
     >
-      <span className="block truncate text-base font-semibold">
+      <span className="block truncate text-base font-semibold sm:text-lg">
         {player.name}
-        {isDue && <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">next up</span>}
+        {isDue && <span className="ml-1 text-xs text-blue-600 sm:text-sm dark:text-blue-400">next up</span>}
       </span>
       <span
         title={`Sat out ${player.sitCount} time${player.sitCount === 1 ? '' : 's'}`}
-        className="absolute bottom-0.5 right-1.5 text-[10px] leading-none text-gray-400 dark:text-gray-500"
+        className="absolute bottom-0.5 right-1.5 text-[10px] leading-none text-gray-400 sm:bottom-1 sm:right-2 sm:text-xs dark:text-gray-500"
       >
         {player.sitCount}
       </span>
