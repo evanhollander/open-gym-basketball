@@ -15,14 +15,13 @@
  * Where a player currently stands in the rotation.
  * - 'team'    - actively playing (on some Team's slots)
  * - 'sitting' - on the bench, next in line by normal turn order
- * - 'next'    - on the bench, explicitly bumped up to play the very next opening
  * - 'holding' - just came off a team; deliberately skipped for a bit so they
  *               don't immediately play again ahead of players who sat longer
  * - 'pending' - came off a team AND has already sat enough rounds to be fully
  *               eligible again (a step past 'holding')
  * - 'none'    - just added, hasn't played or sat yet
  */
-export type PlayerStatus = 'none' | 'team' | 'sitting' | 'next' | 'holding' | 'pending';
+export type PlayerStatus = 'none' | 'team' | 'sitting' | 'holding' | 'pending';
 
 export interface Player {
   id: string;
@@ -48,9 +47,13 @@ export interface Team {
   id: string; // 'team-1' .. 'team-8'
   courtId: string;
   side: TeamSide;
-  /** Fixed-length slots, one per player-per-team. A null entry is an open
-   * slot (a valid drag-and-drop target); a player id fills a slot. Resized
-   * by distributePlayers()/assignTeams() whenever court sizes change. */
+  /** Always a fixed length of 5 (the max team size), regardless of the
+   * court's current sizePerTeam - components slice to sizePerTeam when
+   * rendering/filling. A null entry is an open slot (a valid drag-and-drop
+   * target); a player id fills a slot. Never resized: an earlier version
+   * resized this to match court size, which caused players to silently
+   * vanish (stuck at an out-of-range index) whenever a court shrunk between
+   * assignments. Don't reintroduce dynamic-length slot arrays. */
   slots: (string | null)[];
 }
 
@@ -137,7 +140,6 @@ export type Action =
   | { type: 'SET_GAME_TYPE'; gameType: GameType }
   | { type: 'SET_NUM_COURTS'; numCourts: 1 | 2 | 3 | 4 }
   | { type: 'SET_MAX_TEAM_SIZE'; maxTeamSize: GameType | null }
-  | { type: 'SET_MAX_SIT'; maxSit: number }
   | { type: 'SET_MAX_CONSECUTIVE_WINS'; value: number }
   | { type: 'SET_MAX_SINGLE_COURT_PLAYERS'; value: number }
   | { type: 'SET_THEME'; theme: Theme }
@@ -149,5 +151,4 @@ export type Action =
   | { type: 'CLEAR_TEAMS' }
   | { type: 'CLEAR_SAT' }
   | { type: 'UPDATE_ROUND' }
-  | { type: 'RESET_ALL' }
-  | { type: 'LOAD_STATE'; state: GameState };
+  | { type: 'RESET_ALL' };

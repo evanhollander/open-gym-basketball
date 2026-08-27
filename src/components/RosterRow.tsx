@@ -5,7 +5,6 @@ const STATUS_LABEL: Record<Player['status'], string> = {
   none: 'Not yet played',
   team: 'Playing',
   sitting: 'Sitting',
-  next: 'Next up',
   holding: 'Holding',
   pending: 'Pending',
 };

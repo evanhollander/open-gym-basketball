@@ -14,8 +14,6 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return { ...gameLogic.removePlayer(state, action.playerId), lastError: null };
       case 'RESET_ALL':
         return gameLogic.resetAll(state);
-      case 'LOAD_STATE':
-        return action.state;
 
       case 'SET_GAME_TYPE':
         return { ...state, gameType: action.gameType, lastError: null };
@@ -23,8 +21,6 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return { ...state, numCourts: action.numCourts, lastError: null };
       case 'SET_MAX_TEAM_SIZE':
         return { ...state, maxTeamSize: action.maxTeamSize, lastError: null };
-      case 'SET_MAX_SIT':
-        return { ...state, maxSit: action.maxSit, lastError: null };
       case 'SET_MAX_CONSECUTIVE_WINS':
         return { ...state, maxConsecutiveWins: action.value, lastError: null };
       case 'SET_MAX_SINGLE_COURT_PLAYERS':

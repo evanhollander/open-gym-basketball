@@ -346,7 +346,7 @@ function orderByFairness(players: Player[], rng: () => number = Math.random): Pl
   return descendingSitCounts.flatMap((count) => fisherYatesShuffle(bySitCount.get(count)!, rng));
 }
 
-const BENCH_STATUSES: PlayerStatus[] = ['sitting', 'none', 'next'];
+const BENCH_STATUSES: PlayerStatus[] = ['sitting', 'none'];
 
 // The narrowest tier for a *new* game: players who are actually "due" to
 // play, i.e. they've sat out at least as many rounds as the current fairness
