@@ -71,6 +71,35 @@ describe('updateWins', () => {
     expect(state.court1WinnerTeamId).toBe(null);
   });
 
+  it('reforms both Court 1 teams from scratch when the cap is hit, not just a 1-seat swap', () => {
+    // Regression: hitting the cap used to only vacate the actual winner's
+    // slots while leaving the actual loser's roster completely untouched -
+    // with a small bench (or, as here, none at all - exactly 10 players),
+    // that meant the "forced rotation" was invisible: the winner's own
+    // 5 just-vacated players were the only candidates left to refill their
+    // own 5 slots, so both teams ended up looking exactly like before. The
+    // cap should instead pool all 10 currently-playing players together and
+    // let them freely re-split across both sides.
+    const original = assignTeams(withPlayers(10), false);
+    const court1 = original.courts.find((c) => c.index === 1)!;
+    const originalTeamBIds = [...original.teams[court1.teamBId].slots].sort();
+
+    let sawReshuffledSplit = false;
+    for (let i = 0; i < 30; i++) {
+      let state = { ...original, maxConsecutiveWins: 2 };
+      state = updateWins(state, { [court1.id]: court1.teamAId }); // win 1
+      state = updateWins(state, { [court1.id]: court1.teamAId }); // win 2 -> cap hits
+
+      expect(state.court1WinnerTeamId).toBeNull();
+      const newTeamBIds = [...state.teams[court1.teamBId].slots].sort();
+      if (JSON.stringify(newTeamBIds) !== JSON.stringify(originalTeamBIds)) {
+        sawReshuffledSplit = true;
+        break;
+      }
+    }
+    expect(sawReshuffledSplit).toBe(true);
+  });
+
   it('advances the round via the trailing assignTeams refill', () => {
     const state = assignTeams(withPlayers(10), false);
     const court1 = state.courts.find((c) => c.index === 1)!;

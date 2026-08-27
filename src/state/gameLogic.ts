@@ -696,20 +696,26 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
   const declaredWinnerId = winners[court1.id];
   const streak = declaredWinnerId === next.court1WinnerTeamId ? next.court1WinStreak + 1 : 1;
 
-  let court1WinnerId = declaredWinnerId;
-  let court1WinnerTeamIdToStore: string | null = declaredWinnerId;
-  let court1WinStreak = streak;
-  if (streak >= next.maxConsecutiveWins) {
-    // Streak cap hit: the declared winner is forced to rotate off Court 1
-    // anyway - stops one team hogging the main court all night.
-    court1WinnerId = otherTeamOnCourt(court1, declaredWinnerId);
-    court1WinnerTeamIdToStore = null;
-    court1WinStreak = 0;
-  }
+  const capHit = streak >= next.maxConsecutiveWins;
+  const court1WinnerTeamIdToStore = capHit ? null : declaredWinnerId;
+  const court1WinStreak = capHit ? 0 : streak;
   next = { ...next, court1WinnerTeamId: court1WinnerTeamIdToStore, court1WinStreak };
 
-  const court1LoserId = otherTeamOnCourt(court1, court1WinnerId);
+  const court1LoserId = otherTeamOnCourt(court1, declaredWinnerId);
   next = vacateTeam(next, court1LoserId);
+  if (capHit) {
+    // Streak cap hit: don't just swap which side "stays" (that used to
+    // vacate the actual winner's slots and leave the actual loser's
+    // untouched, which produced a real rotation only when the bench had
+    // enough spare players to fully replace one team - with a small bench,
+    // e.g. 11 players/1 spare, only one seat had anywhere else to go, so it
+    // looked like nothing changed). Instead, vacate the winner's slots too,
+    // pooling all 10 currently-playing Court 1 players together with the
+    // bench - the fill loop below (still highest-sitCount-first) decides
+    // who's actually due to keep playing, and Court 1 reforms as two fresh
+    // teams from whoever that is, not "the same team minus one player."
+    next = vacateTeam(next, declaredWinnerId);
+  }
 
   const court2 = activeCourts.find((c) => c.index === 2);
   if (court2) {
