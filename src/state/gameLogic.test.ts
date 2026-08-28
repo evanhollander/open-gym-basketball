@@ -57,13 +57,12 @@ describe('removePlayer', () => {
 });
 
 describe('resetAll', () => {
-  it('clears players and resets round/maxSit/win-streak state', () => {
+  it('clears players and resets round/win-streak state', () => {
     let state = addPlayer(createInitialState(), 'Alex');
-    state = { ...state, round: 5, maxSit: 3, court1WinStreak: 2 };
+    state = { ...state, round: 5, court1WinStreak: 2 };
     state = resetAll(state);
     expect(state.players).toEqual([]);
     expect(state.round).toBe(0);
-    expect(state.maxSit).toBe(1);
     expect(state.court1WinStreak).toBe(0);
   });
 });

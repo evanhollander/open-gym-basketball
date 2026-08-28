@@ -209,7 +209,66 @@ describe('clearSat', () => {
     let state = assignTeams(withPlayers(12), false);
     state = clearSat(state);
     expect(state.round).toBe(0);
-    expect(state.maxSit).toBe(1);
     expect(state.players.every((p) => p.sitCount === 0)).toBe(true);
+  });
+});
+
+describe('updateWins - multi-court ladder', () => {
+  function withTwoCourts(count: number): GameState {
+    return withPlayers(count, { ...createInitialState(), numCourts: 2 });
+  }
+
+  it('promotes a winning team up the ladder into the court below when multiple courts are active', () => {
+    let state = withTwoCourts(20); // 2 courts, 5v5 each, 0 bench
+    state = assignTeams(state, false);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    const court2 = state.courts.find((c) => c.index === 2)!;
+    const court1WinnerId = court1.teamAId;
+    const court1LoserId = court1.teamBId;
+    const court2WinnerId = court2.teamAId;
+    const court2WinnerPlayers = [...state.teams[court2WinnerId].slots].sort();
+
+    const after = updateWins(state, { [court1.id]: court1WinnerId, [court2.id]: court2WinnerId });
+
+    // Court 2's winning team now occupies Court 1's former loser slot,
+    // intact as a block - not decided by the fairness ranking at all.
+    expect([...after.teams[court1LoserId].slots].sort()).toEqual(court2WinnerPlayers);
+    for (const id of court2WinnerPlayers) {
+      expect(after.players.find((p) => p.id === id)!.teamId).toBe(court1LoserId);
+    }
+  });
+
+  it('still promotes normally on a capped round, but the capped winner is no longer guaranteed to stay intact', () => {
+    let original = withTwoCourts(20);
+    original = assignTeams({ ...original, maxConsecutiveWins: 2 }, false);
+    const court1 = original.courts.find((c) => c.index === 1)!;
+    const court2 = original.courts.find((c) => c.index === 2)!;
+    const court1WinnerId = court1.teamAId;
+    const court1LoserId = court1.teamBId;
+
+    let sawWinnerBrokenUp = false;
+    for (let i = 0; i < 30; i++) {
+      // Win #1 - no cap yet.
+      const state = updateWins(original, { [court1.id]: court1WinnerId, [court2.id]: court2.teamAId });
+      const winnerPlayersBeforeCap = [...state.teams[court1WinnerId].slots].sort();
+      const court2WinnerId = state.courts.find((c) => c.index === 2)!.teamAId;
+      const court2WinnerPlayers = [...state.teams[court2WinnerId].slots].sort();
+
+      // Win #2 - same team wins Court 1 again, cap hits.
+      const after = updateWins(state, { [court1.id]: court1WinnerId, [court2.id]: court2WinnerId });
+
+      expect(after.court1WinnerTeamId).toBeNull();
+      expect(after.lastNotice).toMatch(/reshuffled after 2 wins in a row/i);
+      // The ladder promotion into Court 1's loser slot still happens
+      // normally, independent of the cap.
+      expect([...after.teams[court1LoserId].slots].sort()).toEqual(court2WinnerPlayers);
+
+      const stillFullyIntact = winnerPlayersBeforeCap.every((id) => after.teams[court1WinnerId].slots.includes(id));
+      if (!stillFullyIntact) {
+        sawWinnerBrokenUp = true;
+        break;
+      }
+    }
+    expect(sawWinnerBrokenUp).toBe(true);
   });
 });

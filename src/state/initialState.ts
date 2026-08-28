@@ -43,7 +43,6 @@ export function createInitialState(): GameState {
     gameType: 3, // "3 v 3" minimum, same default as the original
     maxTeamSize: null, // uncapped by default = identical to original behavior
     round: 0,
-    maxSit: 1,
     maxConsecutiveWins: 3,
     maxSingleCourtPlayers: 13,
     court1WinnerTeamId: null,
@@ -51,6 +50,7 @@ export function createInitialState(): GameState {
     lastSatPlayerIds: [],
     sittingOrder: [],
     lastError: null,
+    lastNotice: null,
     theme: 'system',
   };
 }

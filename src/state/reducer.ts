@@ -9,42 +9,44 @@ export function gameReducer(state: GameState, action: Action): GameState {
   try {
     switch (action.type) {
       case 'ADD_PLAYER':
-        return { ...gameLogic.addPlayer(state, action.name), lastError: null };
+        return { ...gameLogic.addPlayer(state, action.name), lastError: null, lastNotice: null };
       case 'REMOVE_PLAYER':
-        return { ...gameLogic.removePlayer(state, action.playerId), lastError: null };
+        return { ...gameLogic.removePlayer(state, action.playerId), lastError: null, lastNotice: null };
       case 'RESET_ALL':
         return gameLogic.resetAll(state);
 
       case 'SET_GAME_TYPE':
-        return { ...state, gameType: action.gameType, lastError: null };
+        return { ...state, gameType: action.gameType, lastError: null, lastNotice: null };
       case 'SET_NUM_COURTS':
-        return { ...state, numCourts: action.numCourts, lastError: null };
+        return { ...state, numCourts: action.numCourts, lastError: null, lastNotice: null };
       case 'SET_MAX_TEAM_SIZE':
-        return { ...state, maxTeamSize: action.maxTeamSize, lastError: null };
+        return { ...state, maxTeamSize: action.maxTeamSize, lastError: null, lastNotice: null };
       case 'SET_MAX_CONSECUTIVE_WINS':
-        return { ...state, maxConsecutiveWins: action.value, lastError: null };
+        return { ...state, maxConsecutiveWins: action.value, lastError: null, lastNotice: null };
       case 'SET_MAX_SINGLE_COURT_PLAYERS':
-        return { ...state, maxSingleCourtPlayers: action.value, lastError: null };
+        return { ...state, maxSingleCourtPlayers: action.value, lastError: null, lastNotice: null };
       case 'SET_THEME':
-        return { ...state, theme: action.theme, lastError: null };
+        return { ...state, theme: action.theme, lastError: null, lastNotice: null };
 
       case 'ASSIGN_TEAMS':
-        return gameLogic.assignTeams(state, !!action.keepTeams);
+        return { ...gameLogic.assignTeams(state, !!action.keepTeams), lastNotice: null };
       case 'RESHUFFLE_TEAMS':
-        return gameLogic.reshuffleTeams(state);
+        return { ...gameLogic.reshuffleTeams(state), lastNotice: null };
       case 'SUBMIT_WINNERS':
+        // updateWins sets lastNotice itself (non-null only when the
+        // win-streak cap just forced a team apart) - don't clear it here.
         return gameLogic.updateWins(state, action.winners);
       case 'CLEAR_TEAMS':
-        return gameLogic.clearTeams(state);
+        return { ...gameLogic.clearTeams(state), lastNotice: null };
       case 'CLEAR_SAT':
-        return gameLogic.clearSat(state);
+        return { ...gameLogic.clearSat(state), lastNotice: null };
       case 'UPDATE_ROUND':
-        return { ...state, round: state.round + 1, lastError: null };
+        return { ...state, round: state.round + 1, lastError: null, lastNotice: null };
 
       case 'MOVE_PLAYER':
-        return gameLogic.movePlayer(state, action.playerId, action.target);
+        return { ...gameLogic.movePlayer(state, action.playerId, action.target), lastNotice: null };
       case 'SWAP_PLAYERS':
-        return gameLogic.swapPlayers(state, action.playerAId, action.playerBId);
+        return { ...gameLogic.swapPlayers(state, action.playerAId, action.playerBId), lastNotice: null };
 
       default:
         return state;

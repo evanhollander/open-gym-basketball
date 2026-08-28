@@ -14,14 +14,10 @@
 /**
  * Where a player currently stands in the rotation.
  * - 'team'    - actively playing (on some Team's slots)
- * - 'sitting' - on the bench, next in line by normal turn order
- * - 'holding' - just came off a team; deliberately skipped for a bit so they
- *               don't immediately play again ahead of players who sat longer
- * - 'pending' - came off a team AND has already sat enough rounds to be fully
- *               eligible again (a step past 'holding')
+ * - 'sitting' - on the bench, in line by fairness order (see rankPlayersForRound)
  * - 'none'    - just added, hasn't played or sat yet
  */
-export type PlayerStatus = 'none' | 'team' | 'sitting' | 'holding' | 'pending';
+export type PlayerStatus = 'none' | 'team' | 'sitting';
 
 export interface Player {
   id: string;
@@ -33,8 +29,7 @@ export interface Player {
    * shuffle cascade prefers players with a *higher* sitCount when picking who
    * plays next. */
   sitCount: number;
-  /** The round number as of this player's last sitCount change. Used both to
-   * check "did this player sit last round?" (see checkLastSat) and to guard
+  /** The round number as of this player's last sitCount change. Used to guard
    * against double-counting a sit when a bench player is dragged straight
    * onto a team within the same round they were just benched in (see
    * movePlayer's same-round guard, section 6). */
@@ -92,9 +87,6 @@ export interface GameState {
   maxTeamSize: GameType | null;
   /** Bumped each time assignTeams() deals a fresh round (not on reshuffle). */
   round: number;
-  /** The most rounds anyone has sat, all-time so far. Acts as the fairness
-   * bar: nobody sits again until enough other players have caught up to it. */
-  maxSit: number;
   /** How many rounds in a row a team can keep winning Court 1 before it's
    * forced to sit out, win or not - stops one team hogging the main court. */
   maxConsecutiveWins: number;
@@ -109,7 +101,7 @@ export interface GameState {
   court1WinnerTeamId: string | null;
   court1WinStreak: number;
   /** Ids of players who sat the previous round, most-recent round first,
-   * capped at 10. Used by checkLastSat() so the same people don't get
+   * capped at 10. Used by rankPlayersForRound() so the same people don't get
    * benched two rounds running. */
   lastSatPlayerIds: string[];
   /** Bench, in display/turn order. */
@@ -118,6 +110,11 @@ export interface GameState {
    * "need at least 6 players"), shown as a toast instead of the original's
    * alert() popups. Cleared on the next successful action. */
   lastError: string | null;
+  /** Set when Submit Winners forces a team apart due to the win-streak cap
+   * (see updateWins), so the game manager notices even though nothing
+   * failed - an informational toast, not an error. Cleared on the next
+   * successful action, same as lastError. */
+  lastNotice: string | null;
   /** UI preference, not game data - stored here anyway since it's the one
    * blob already persisted to localStorage. 'system' (default) follows the
    * OS/browser's prefers-color-scheme; 'light'/'dark' force it regardless -

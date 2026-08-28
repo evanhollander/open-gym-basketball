@@ -9,7 +9,7 @@
 // Sections (in the order a new round of the game actually happens):
 //   1. Roster management        - add/remove players                    [M1]
 //   2. Court distribution        - how many players per team, per court  [M2]
-//   3. Shuffle cascade            - who plays next, fairly               [M2]
+//   3. Fairness ranking          - who's due to play next                [M2]
 //   4. Assign teams                - fill empty team slots               [M2]
 //   5. Winner-stays rotation        - handle "who won", advance the round [M3]
 //   6. Manual player movement        - drag-and-drop bench <-> team slots [M4]
@@ -104,10 +104,10 @@ export function resetAll(state: GameState): GameState {
     sittingOrder: [],
     lastSatPlayerIds: [],
     round: 0,
-    maxSit: 1,
     court1WinnerTeamId: null,
     court1WinStreak: 0,
     lastError: null,
+    lastNotice: null,
   };
 }
 
@@ -247,29 +247,6 @@ export function distributePlayers(
   return sizes;
 }
 
-/**
- * Guardrail check offered on "Assign Teams": with a single, mostly-full
- * court (bench smaller than a full team) and a high Winner Stays On cap, the
- * losing side's revolving door can't be fully refilled from the bench alone
- * - some just-benched player is always recycled straight back in. A long win
- * streak compounds that recycling round after round until someone sits
- * twice before the protected winning team has sat even once. This doesn't
- * fire for multi-court setups or a big-enough bench, since the bench alone
- * can cover a full team swap there and the tension doesn't come up.
- */
-export function isRiskyStreakSetup(state: GameState): boolean {
-  if (state.numCourts !== 1 || state.maxConsecutiveWins <= 2) return false;
-  const sizes = distributePlayers(
-    state.numCourts,
-    state.players.length,
-    state.gameType,
-    state.maxTeamSize,
-    state.maxSingleCourtPlayers,
-  );
-  const bench = state.players.length - sizes.court1 * 2;
-  return bench > 0 && bench < sizes.court1;
-}
-
 /** Recomputes court sizes/active flags from the current roster and settings. */
 function applyDistribution(state: GameState): GameState {
   const sizes = distributePlayers(
@@ -292,20 +269,15 @@ function applyDistribution(state: GameState): GameState {
   return { ...state, courts };
 }
 
-// ---- 3. Shuffle cascade ----
-// Replaces the original's shuffleTeamPlayers()/shuffleNextPlayers()/
-// shuffleSittingPlayers()/shufflePendingPlayers()/shuffleRemainingPlayers()
-// chain. Each of those was a progressively wider pool of "who's allowed to
-// play next", tried in order until one had candidates. Instead of the
-// original's global mutable array + lazy re-fill-on-exhaustion, this builds
-// one flat, priority-ordered list up front: first everyone from the
-// narrowest eligible tier, then whoever the next tier adds that the first
-// tier didn't already include, and so on. Reading through that list in
-// order is equivalent to the original's "try this pool, fall back to the
-// next one when it runs dry" behavior, just without having to re-derive the
-// fallback pool mid-loop. Within each tier, players are ordered by sit-count
-// (most-sat-out first, see orderByFairness) rather than pure chance -
-// randomness only ever breaks a genuine tie between equally-due players.
+export function getActiveCourts(state: GameState): Court[] {
+  return state.courts.filter((c) => c.active);
+}
+
+// ---- 3. Fairness ranking ----
+// Who plays next is decided by one global ranking, not a tiered fallback
+// cascade: every player not already deterministically placed by the
+// win-streak ladder (section 5) is ranked by how "due" they are, and
+// whoever ranks highest fills however many slots are actually open.
 
 export function fisherYatesShuffle<T>(items: T[], rng: () => number = Math.random): T[] {
   const result = [...items];
@@ -317,25 +289,20 @@ export function fisherYatesShuffle<T>(items: T[], rng: () => number = Math.rando
 }
 
 /**
- * Orders players within one eligibility tier by how many rounds they've
- * sat out, most first - so "who actually gets pulled off the bench first"
- * is decided by sit-count whenever it differs, not left to chance. Within
- * a fallback tier (see buildCandidateOrder) sit-counts can genuinely
- * differ - e.g. someone who's sat 3 times can end up in the same wider
- * pool as someone just vacated from a losing team who's sat 0 times - and
- * shuffling them together would let the person who's sat less get picked
- * ahead of someone who's clearly more due, purely by luck.
- *
- * Players with the *same* sit-count are shuffled against each other, not
- * ranked further: they became eligible from the same event (e.g. an entire
- * losing team benched together) and are genuinely equally deserving right
- * now - there's no fairness signal left to break that tie with. Whoever
- * loses that shuffle isn't actually worse off for long, though: they stay
- * on the bench, their sit-count ticks up past the others' next round, and
- * that makes them the clear next pick - the same rough correction a
- * human game manager would make by remembering "I sat them last time."
+ * Orders `players` from most- to least-due to play: highest sitCount first
+ * (most rounds sat out plays next); within a sitCount tie, whoever did
+ * *not* sit last round (see lastSatPlayerIds) beats whoever did, so the
+ * same person isn't benched two rounds running purely by chance; within
+ * *that* tie, on the very first game of the day (round 0, so everyone's
+ * tied at sitCount 0 and nobody's sat "last round" at all) whoever joined
+ * the roster earliest wins - late arrivals don't get priority over people
+ * who showed up on time. Any remaining genuine tie (every other round, or
+ * a coincidental all-zero tie later in the day) is broken randomly, so a
+ * group that's equally due doesn't always resolve the same way twice.
  */
-function orderByFairness(players: Player[], rng: () => number = Math.random): Player[] {
+function rankPlayersForRound(state: GameState, players: Player[], rng: () => number = Math.random): Player[] {
+  const rosterIndex = new Map(state.players.map((p, i) => [p.id, i]));
+
   const bySitCount = new Map<number, Player[]>();
   for (const p of players) {
     const group = bySitCount.get(p.sitCount);
@@ -343,117 +310,22 @@ function orderByFairness(players: Player[], rng: () => number = Math.random): Pl
     else bySitCount.set(p.sitCount, [p]);
   }
   const descendingSitCounts = [...bySitCount.keys()].sort((a, b) => b - a);
-  return descendingSitCounts.flatMap((count) => fisherYatesShuffle(bySitCount.get(count)!, rng));
-}
 
-const BENCH_STATUSES: PlayerStatus[] = ['sitting', 'none'];
+  const orderSubgroup = (tier: Player[], sitCount: number): Player[] =>
+    state.round === 0 && sitCount === 0
+      ? [...tier].sort((a, b) => rosterIndex.get(a.id)! - rosterIndex.get(b.id)!)
+      : fisherYatesShuffle(tier, rng);
 
-// The narrowest tier for a *new* game: players who are actually "due" to
-// play, i.e. they've sat out at least as many rounds as the current fairness
-// bar (maxSit). Everyone else on the bench is left alone for now (they'll be
-// picked up by the wider fallback tiers below only if there aren't enough
-// due players to fill every slot).
-function buildDueTierPool(state: GameState): Player[] {
-  const eligible = state.players.filter(
-    (p) => BENCH_STATUSES.includes(p.status) && (state.round < 1 || p.sitCount >= state.maxSit),
-  );
-  if (state.round >= 1) return eligible;
-
-  // Very first game of the day: nobody has sat yet, so instead of "who's
-  // due" (everyone, vacuously), prioritize whoever was added first - see the
-  // app's own "First Game prioritizes based on order added" note. Limiting
-  // the pool to exactly the number of open slots means the earliest joiners
-  // fill the first game and everyone after starts on the bench.
-  const capacity = getActiveCourts(state).reduce((sum, c) => sum + c.sizePerTeam * 2, 0);
-  const firstInLine = new Set(state.players.slice(0, capacity).map((p) => p.id));
-  return eligible.filter((p) => firstInLine.has(p.id));
-}
-
-/** Builds the full priority-ordered candidate list for filling team slots.
- * `keepTeams` selects the narrower "just reshuffle who's already playing"
- * pool used by Reshuffle Teams, instead of pulling fresh players off the
- * bench. */
-function buildCandidateOrder(state: GameState, keepTeams: boolean): Player[] {
-  const tierPools: Player[][] = keepTeams
-    ? [state.players.filter((p) => p.status === 'team')]
-    : [
-        buildDueTierPool(state),
-        state.players.filter((p) => BENCH_STATUSES.includes(p.status)),
-        state.players.filter((p) => BENCH_STATUSES.includes(p.status) || p.status === 'pending'),
-        state.players.filter((p) => p.status !== 'team'),
-      ];
-
-  const seen = new Set<string>();
-  const ordered: Player[] = [];
-  for (const pool of tierPools) {
-    const fresh = pool.filter((p) => !seen.has(p.id));
-    for (const p of orderByFairness(fresh)) {
-      seen.add(p.id);
-      ordered.push(p);
-    }
-  }
-  return ordered;
-}
-
-/** A one-shot, already-shuffled queue of "who plays next" for a single
- * Assign Teams pass. Call `.next()` to draw the next candidate. */
-function createCandidateFeed(state: GameState, keepTeams: boolean) {
-  const ordered = buildCandidateOrder(state, keepTeams);
-  let cursor = 0;
-  return {
-    next(): Player | undefined {
-      return cursor < ordered.length ? ordered[cursor++] : undefined;
-    },
-  };
+  return descendingSitCounts.flatMap((count) => {
+    const group = bySitCount.get(count)!;
+    const notLastSat = group.filter((p) => !state.lastSatPlayerIds.includes(p.id));
+    const didLastSat = group.filter((p) => state.lastSatPlayerIds.includes(p.id));
+    return [...orderSubgroup(notLastSat, count), ...orderSubgroup(didLastSat, count)];
+  });
 }
 
 // ---- 4. Assign teams ----
-// Replaces the original's assignTeams()/reshuffleTeams()/checkLastSat().
-
-/** True if this player sat out last round, or has sat within the last 2
- * rounds - both are used as "don't bench them again immediately" signals. */
-export function checkLastSat(state: GameState, playerId: string): boolean {
-  if (state.lastSatPlayerIds.includes(playerId)) return true;
-  const player = state.players.find((p) => p.id === playerId);
-  if (!player) return false;
-  return state.round - player.statusRound <= 2;
-}
-
-export function getActiveCourts(state: GameState): Court[] {
-  return state.courts.filter((c) => c.active);
-}
-
-function setPlayerStatus(state: GameState, playerId: string, status: PlayerStatus): GameState {
-  return {
-    ...state,
-    players: state.players.map((p) => (p.id === playerId ? { ...p, status } : p)),
-  };
-}
-
-function placePlayerOnTeam(state: GameState, playerId: string, teamId: string, slotIndex: number): GameState {
-  const team = state.teams[teamId];
-  const slots = [...team.slots];
-  slots[slotIndex] = playerId;
-  return {
-    ...state,
-    teams: { ...state.teams, [teamId]: { ...team, slots } },
-    players: state.players.map((p) => (p.id === playerId ? { ...p, teamId, status: 'team' } : p)),
-  };
-}
-
-// Team fill order matches the original: Team 1, Team 2 (Court 1), then Team
-// 3, Team 4 (Court 2), etc. - Court 1 always fills first since it's the
-// "main" court.
-const TEAM_COURT_ORDER: { teamId: string; courtIndex: 1 | 2 | 3 | 4 }[] = [
-  { teamId: 'team-1', courtIndex: 1 },
-  { teamId: 'team-2', courtIndex: 1 },
-  { teamId: 'team-3', courtIndex: 2 },
-  { teamId: 'team-4', courtIndex: 2 },
-  { teamId: 'team-5', courtIndex: 3 },
-  { teamId: 'team-6', courtIndex: 3 },
-  { teamId: 'team-7', courtIndex: 4 },
-  { teamId: 'team-8', courtIndex: 4 },
-];
+// Replaces the original's assignTeams()/reshuffleTeams().
 
 /**
  * Removes the excess players from any team that's grown too big for its
@@ -512,98 +384,145 @@ function truncateOversizedTeams(state: GameState): GameState {
       next = {
         ...next,
         teams: { ...next.teams, [teamId]: { ...team, slots } },
-        players: next.players.map((p) => (removedIds.includes(p.id) ? { ...p, status: 'holding', teamId: null } : p)),
+        players: next.players.map((p) => (removedIds.includes(p.id) ? { ...p, status: 'sitting', teamId: null } : p)),
       };
     }
   }
   return next;
 }
 
+// Team fill order matches the original: Team 1, Team 2 (Court 1), then Team
+// 3, Team 4 (Court 2), etc. - Court 1 always fills first since it's the
+// "main" court.
+const TEAM_COURT_ORDER: { teamId: string; courtIndex: 1 | 2 | 3 | 4 }[] = [
+  { teamId: 'team-1', courtIndex: 1 },
+  { teamId: 'team-2', courtIndex: 1 },
+  { teamId: 'team-3', courtIndex: 2 },
+  { teamId: 'team-4', courtIndex: 2 },
+  { teamId: 'team-5', courtIndex: 3 },
+  { teamId: 'team-6', courtIndex: 3 },
+  { teamId: 'team-7', courtIndex: 4 },
+  { teamId: 'team-8', courtIndex: 4 },
+];
+
+function placePlayerOnTeam(state: GameState, playerId: string, teamId: string, slotIndex: number): GameState {
+  const team = state.teams[teamId];
+  const slots = [...team.slots];
+  slots[slotIndex] = playerId;
+  return {
+    ...state,
+    teams: { ...state.teams, [teamId]: { ...team, slots } },
+    players: state.players.map((p) => (p.id === playerId ? { ...p, teamId, status: 'team' } : p)),
+  };
+}
+
+/** Fills every currently-empty team slot on every active court from
+ * `candidates`, in fixed court/team order, each candidate placed in the
+ * first open slot found. Never touches an already-occupied slot - that's
+ * how continuity works: this only ever sees genuinely open seats, whether
+ * they were empty to begin with or just vacated by resolveOpenSlots. */
+function fillOpenSlots(state: GameState, candidates: Player[]): GameState {
+  let next = state;
+  let cursor = 0;
+  outer: for (const { teamId, courtIndex } of TEAM_COURT_ORDER) {
+    const court = next.courts.find((c) => c.index === courtIndex)!;
+    if (!court.active) continue;
+    for (let slotIndex = 0; slotIndex < court.sizePerTeam; slotIndex++) {
+      if (next.teams[teamId].slots[slotIndex] !== null) continue;
+      const candidate = candidates[cursor];
+      if (!candidate) break outer; // nobody left to place; leave remaining slots open
+      cursor++;
+      next = placePlayerOnTeam(next, candidate.id, teamId, slotIndex);
+    }
+  }
+  return next;
+}
+
+/**
+ * Decides who fills every slot that isn't already deterministically
+ * assigned (`protectedIds` - Court 1's own winner, plus anyone the
+ * win-streak ladder just promoted; empty for a fresh Assign Teams with no
+ * winners yet). Everyone else currently on a team ("contested incumbents" -
+ * typically a losing team the ladder didn't claim) competes on equal
+ * footing with the whole bench: rank the combined pool, and whoever ranks
+ * in the top `openSlotCount` plays. An incumbent who makes the cut keeps
+ * their exact slot untouched; one who doesn't gets bumped to the bench,
+ * freeing their slot for whoever from the bench *did* make the cut.
+ */
+function resolveOpenSlots(state: GameState, protectedIds: Set<string>, rng: () => number = Math.random): GameState {
+  const capacity = getActiveCourts(state).reduce((sum, c) => sum + c.sizePerTeam * 2, 0);
+  const openSlotCount = capacity - protectedIds.size;
+
+  const contestedIncumbents = state.players.filter((p) => p.status === 'team' && !protectedIds.has(p.id));
+  const benchPool = state.players.filter((p) => p.status !== 'team');
+
+  const ranked = rankPlayersForRound(state, [...contestedIncumbents, ...benchPool], rng);
+  const enteringIds = new Set(ranked.slice(0, openSlotCount).map((p) => p.id));
+
+  let next = state;
+  for (const incumbent of contestedIncumbents) {
+    if (enteringIds.has(incumbent.id)) continue; // stays exactly where they are
+    const team = next.teams[incumbent.teamId!];
+    next = {
+      ...next,
+      teams: { ...next.teams, [incumbent.teamId!]: { ...team, slots: team.slots.map((s) => (s === incumbent.id ? null : s)) } },
+      players: next.players.map((p) => (p.id === incumbent.id ? { ...p, status: 'sitting', teamId: null } : p)),
+    };
+  }
+
+  const newcomers = ranked.filter((p) => enteringIds.has(p.id) && p.status !== 'team');
+  return fillOpenSlots(next, newcomers);
+}
+
+/** Shared tail for both assignTeams and updateWins once every deterministic
+ * placement (if any) is done: fills whatever's left open, then rebuilds the
+ * bench (bumps sitCount + stamps statusRound for everyone not on a team,
+ * tracks who just sat for next round's fairness ranking). */
+function resolveRound(state: GameState, protectedIds: Set<string>, incrementRound: boolean): GameState {
+  let next = resolveOpenSlots(state, protectedIds);
+  if (incrementRound) next = { ...next, round: next.round + 1 };
+
+  const sittingOrder: string[] = [];
+  const players = next.players.map((p) => {
+    if (p.status === 'team') return p;
+    sittingOrder.push(p.id);
+    return { ...p, status: 'sitting' as const, sitCount: p.sitCount + 1, statusRound: next.round };
+  });
+
+  return { ...next, players, sittingOrder, lastSatPlayerIds: sittingOrder.slice(0, 10), lastError: null };
+}
+
 /**
  * Fills every empty team slot on every active court, then rebuilds the
  * bench. This is the single entry point both the "Assign Teams" button
  * (keepTeams=false) and "Reshuffle Teams" (keepTeams=true) call.
- *
- * Only *empty* slots get filled - if a team already has players in it (e.g.
- * a team that just won and is staying on Court 1), those slots are left
- * alone. That's how "winner stays on" actually works: updateWins() (section
- * 5) only clears the losing teams' slots before calling this.
  */
 export function assignTeams(state: GameState, keepTeams: boolean): GameState {
   if (state.players.length < 6) {
     throw new Error('Minimum 6 players required.');
   }
 
-  let next = truncateOversizedTeams(applyDistribution(state));
+  const next = truncateOversizedTeams(applyDistribution(state));
 
   if (keepTeams) {
-    // Reshuffle: capture who's currently playing before wiping the board, so
-    // the fill loop below redistributes exactly those same players.
+    // Reshuffle: just re-scramble who's currently playing among themselves -
+    // no bench, no ranking, nobody's sit accounting changes.
+    const playing = fisherYatesShuffle(next.players.filter((p) => p.status === 'team'));
     const teams = { ...next.teams };
     for (const id of Object.keys(teams)) {
       teams[id] = { ...teams[id], slots: teams[id].slots.map(() => null) };
     }
-    next = { ...next, teams, court1WinnerTeamId: null, court1WinStreak: 0 };
+    const cleared = { ...next, teams, court1WinnerTeamId: null, court1WinStreak: 0 };
+    return { ...fillOpenSlots(cleared, playing), lastError: null };
   }
 
-  const feed = createCandidateFeed(next, keepTeams);
-
-  for (const { teamId, courtIndex } of TEAM_COURT_ORDER) {
-    const court = next.courts.find((c) => c.index === courtIndex)!;
-    if (!court.active) continue;
-
-    for (let slotIndex = 0; slotIndex < court.sizePerTeam; slotIndex++) {
-      if (next.teams[teamId].slots[slotIndex] !== null) continue; // already filled (e.g. winner staying on)
-
-      let candidate = feed.next();
-
-      // Fairness grace period: if this candidate didn't sit last round *and*
-      // still has plenty of room before they're "due" (more than 1 round
-      // below the fairness bar), skip them once in favor of the very next
-      // candidate in line - mirrors the original exactly, including that it
-      // only re-checks the replacement's own eligibility on a later slot,
-      // not immediately.
-      if (
-        candidate &&
-        next.round > 0 &&
-        !checkLastSat(next, candidate.id) &&
-        next.maxSit - candidate.sitCount > 1
-      ) {
-        next = setPlayerStatus(next, candidate.id, 'holding');
-        candidate = feed.next();
-      }
-
-      if (!candidate) break; // nobody left to place; leave remaining slots open
-      next = placePlayerOnTeam(next, candidate.id, teamId, slotIndex);
-    }
-  }
-
-  if (!keepTeams) {
-    next = { ...next, round: next.round + 1 };
-  }
-
-  // Rebuild the bench: anyone not on a team now is sitting, in roster order
-  // (matches the original's row-by-row sitting-list rebuild).
-  let maxSit = next.maxSit;
-  const sittingOrder: string[] = [];
-  const players = next.players.map((p) => {
-    if (p.status === 'team') return p;
-    sittingOrder.push(p.id);
-    if (keepTeams) return { ...p, status: 'sitting' as const };
-
-    const sitCount = p.sitCount + 1;
-    if (sitCount > maxSit) maxSit = sitCount;
-    return { ...p, status: 'sitting' as const, sitCount, statusRound: next.round };
-  });
-
-  return {
-    ...next,
-    players,
-    sittingOrder,
-    maxSit,
-    lastSatPlayerIds: sittingOrder.slice(0, 10),
-    lastError: null,
-  };
+  // assignTeams only ever fills genuinely open slots - anyone already on a
+  // team (in normal UI usage there's nobody, since the "Assign Teams"
+  // button is only shown when no round is in progress) is protected from
+  // being reconsidered. Displacing an already-playing loser is updateWins'
+  // job alone, once a round has actually been played.
+  const alreadyPlaced = new Set(next.players.filter((p) => p.status === 'team').map((p) => p.id));
+  return resolveRound(next, alreadyPlaced, true);
 }
 
 /** Reshuffles who's on which team without touching who's sitting or
@@ -613,65 +532,23 @@ export function reshuffleTeams(state: GameState): GameState {
 }
 
 // ---- 5. Winner-stays rotation ----
-// Replaces the original's updateWins()/moveTeam(). "Winner stays on" cascades
-// up through the courts: Court 1's loser benches and Court 2's winner moves
-// into their spot. Court 2 is then completely empty, so BOTH Court 3's
-// winner and Court 4's winner move up into it (Court 3's winner takes
-// team-3, Court 4's winner takes team-4) - Court 3 and Court 4 always end
-// each round fully empty and get refilled straight from the bench by the
-// assignTeams() call at the end. This mirrors the original, including fixing
-// two apparent copy-paste bugs in its Court 3/4 loser-vacate code (it reused
-// variables named lost2num/lost2name instead of lost3num/lost4num, and its
-// Court 4 branch checked `win3` instead of `win4`) - flagging these in case
-// the original behavior was actually intentional rather than a typo.
-//
-// The original also had a setNextPlayers() step that relabeled bench players
-// as "Sitting" vs "Next" before refilling. That distinction doesn't actually
-// change who gets picked anywhere else in the app (both statuses are treated
-// identically by the fairness/candidate logic), so it's a cosmetic label
-// with no behavioral effect - skipped here rather than ported as dead
-// complexity. A "who's up next" indicator can be added later as a pure
-// selector over sitCount instead of a stored status (see M5 polish).
-
-function moveTeam(state: GameState, fromTeamId: string, toTeamId: string): GameState {
-  const fromTeam = state.teams[fromTeamId];
-  const toTeam = state.teams[toTeamId];
-  const movedIds = fromTeam.slots.filter((id): id is string => id !== null);
-  return {
-    ...state,
-    teams: {
-      ...state.teams,
-      [fromTeamId]: { ...fromTeam, slots: fromTeam.slots.map(() => null) },
-      [toTeamId]: { ...toTeam, slots: [...fromTeam.slots] },
-    },
-    players: state.players.map((p) => (movedIds.includes(p.id) ? { ...p, teamId: toTeamId } : p)),
-  };
-}
-
-/** Clears a team's slots and benches whoever was on it - holding briefly
- * unless they've already sat enough rounds to be fully due again. */
-function vacateTeam(state: GameState, teamId: string): GameState {
-  const team = state.teams[teamId];
-  const playerIds = team.slots.filter((id): id is string => id !== null);
-  return {
-    ...state,
-    players: state.players.map((p) => {
-      if (!playerIds.includes(p.id)) return p;
-      const status: PlayerStatus = p.sitCount < state.maxSit ? 'holding' : 'pending';
-      return { ...p, status, teamId: null };
-    }),
-    teams: { ...state.teams, [teamId]: { ...team, slots: team.slots.map(() => null) } },
-  };
-}
+// Replaces the original's updateWins()/moveTeam(). "Winner stays on"
+// promotes a court's winner one hop toward Court 1: Court 2's winner takes
+// Court 1's loser's slot; Court 3's winner takes the slot Court 2's winner
+// just vacated; Court 4's winner takes the slot Court 3's winner just
+// vacated; and so on for any future court count. This is deterministic -
+// no ranking involved - and every court's own *loser* (other than Court 1's,
+// which is unconditionally displaced by the promotion above) is left in
+// place and folded into the normal fairness ranking along with the bench,
+// same as anyone else: they keep their seat only if they still rank well
+// enough.
 
 function otherTeamOnCourt(court: Court, teamId: string): string {
   return teamId === court.teamAId ? court.teamBId : court.teamAId;
 }
 
 /**
- * Records who won each active court, advances "winner stays on" (with a
- * consecutive-win cap on Court 1 - see maxConsecutiveWins), cascades winners
- * up through the courts, and refills every now-open slot from the bench.
+ * Records who won each active court and advances "winner stays on".
  * `winners` maps courtId -> the winning teamId.
  */
 export function updateWins(state: GameState, winners: Record<string, string>): GameState {
@@ -692,58 +569,76 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
 
   let next = state;
 
+  // ---- Court 1 win-streak cap ----
   const court1 = activeCourts.find((c) => c.index === 1)!;
-  const declaredWinnerId = winners[court1.id];
-  const streak = declaredWinnerId === next.court1WinnerTeamId ? next.court1WinStreak + 1 : 1;
-
+  const court1WinnerId = winners[court1.id];
+  const streak = court1WinnerId === next.court1WinnerTeamId ? next.court1WinStreak + 1 : 1;
   const capHit = streak >= next.maxConsecutiveWins;
-  const court1WinnerTeamIdToStore = capHit ? null : declaredWinnerId;
-  const court1WinStreak = capHit ? 0 : streak;
-  next = { ...next, court1WinnerTeamId: court1WinnerTeamIdToStore, court1WinStreak };
+  next = {
+    ...next,
+    court1WinnerTeamId: capHit ? null : court1WinnerId,
+    court1WinStreak: capHit ? 0 : streak,
+  };
 
-  const court1LoserId = otherTeamOnCourt(court1, declaredWinnerId);
-  next = vacateTeam(next, court1LoserId);
+  // A team can only actually be "chopped up" if there's somewhere else for
+  // its players to go - with a single active court, the cap clears BOTH
+  // Court 1 teams together so the fill loop reforms two genuinely new teams
+  // from whoever's due, rather than the same 10 players landing right back
+  // in place with nothing to displace them. With 2+ active courts, only the
+  // streaking winner needs to be cleared - the ladder below always claims
+  // Court 1's loser slot regardless, so that side already turns over.
+  const singleCourt = activeCourts.length === 1;
+  let lastNotice: string | null = null;
   if (capHit) {
-    // Streak cap hit: don't just swap which side "stays" (that used to
-    // vacate the actual winner's slots and leave the actual loser's
-    // untouched, which produced a real rotation only when the bench had
-    // enough spare players to fully replace one team - with a small bench,
-    // e.g. 11 players/1 spare, only one seat had anywhere else to go, so it
-    // looked like nothing changed). Instead, vacate the winner's slots too,
-    // pooling all 10 currently-playing Court 1 players together with the
-    // bench - the fill loop below (still highest-sitCount-first) decides
-    // who's actually due to keep playing, and Court 1 reforms as two fresh
-    // teams from whoever that is, not "the same team minus one player."
-    next = vacateTeam(next, declaredWinnerId);
+    const clearTeamIds = singleCourt ? [court1.teamAId, court1.teamBId] : [court1WinnerId];
+    for (const teamId of clearTeamIds) {
+      const team = next.teams[teamId];
+      next = {
+        ...next,
+        teams: { ...next.teams, [teamId]: { ...team, slots: team.slots.map(() => null) } },
+        players: next.players.map((p) => (p.teamId === teamId ? { ...p, status: 'sitting', teamId: null } : p)),
+      };
+    }
+    lastNotice = singleCourt
+      ? `Court 1 teams reshuffled after ${next.maxConsecutiveWins} wins in a row.`
+      : `Team ${court1WinnerId.split('-')[1]} (${next.teams[court1WinnerId].side === 'white' ? 'White' : 'Dark'}) reshuffled after ${next.maxConsecutiveWins} wins in a row.`;
   }
 
-  const court2 = activeCourts.find((c) => c.index === 2);
-  if (court2) {
-    const court2WinnerId = winners[court2.id];
-    const court2LoserId = otherTeamOnCourt(court2, court2WinnerId);
-    next = moveTeam(next, court2WinnerId, court1LoserId);
-    next = vacateTeam(next, court2LoserId);
+  // ---- Ladder: promote each court's winner into the court below it ----
+  const protectedIds = new Set<string>();
+  if (!capHit) {
+    for (const id of next.teams[court1WinnerId].slots) if (id) protectedIds.add(id);
   }
 
-  // Court 2 is now fully empty (its winner moved up, its loser just
-  // vacated) - Court 3 and Court 4's winners both feed into it.
-  const court3 = activeCourts.find((c) => c.index === 3);
-  if (court3) {
-    const court3WinnerId = winners[court3.id];
-    const court3LoserId = otherTeamOnCourt(court3, court3WinnerId);
-    next = moveTeam(next, court3WinnerId, 'team-3');
-    next = vacateTeam(next, court3LoserId);
+  let destinationTeamId = otherTeamOnCourt(court1, court1WinnerId);
+  for (let i = 2; i <= 4; i++) {
+    const court = activeCourts.find((c) => c.index === i);
+    if (!court) break;
+    const winnerId = winners[court.id];
+    const winnerTeam = next.teams[winnerId];
+    const movedIds = winnerTeam.slots.filter((id): id is string => id !== null);
+    const destTeam = next.teams[destinationTeamId];
+    const displacedIds = destTeam.slots.filter((id): id is string => id !== null);
+
+    next = {
+      ...next,
+      teams: {
+        ...next.teams,
+        [winnerId]: { ...winnerTeam, slots: winnerTeam.slots.map(() => null) },
+        [destinationTeamId]: { ...destTeam, slots: [...winnerTeam.slots] },
+      },
+      players: next.players.map((p) => {
+        if (movedIds.includes(p.id)) return { ...p, teamId: destinationTeamId };
+        if (displacedIds.includes(p.id)) return { ...p, status: 'sitting', teamId: null };
+        return p;
+      }),
+    };
+    for (const id of movedIds) protectedIds.add(id);
+    destinationTeamId = winnerId;
   }
 
-  const court4 = activeCourts.find((c) => c.index === 4);
-  if (court4) {
-    const court4WinnerId = winners[court4.id];
-    const court4LoserId = otherTeamOnCourt(court4, court4WinnerId);
-    next = moveTeam(next, court4WinnerId, 'team-4');
-    next = vacateTeam(next, court4LoserId);
-  }
-
-  return assignTeams(next, false);
+  next = resolveRound(next, protectedIds, true);
+  return { ...next, lastNotice };
 }
 
 // ---- Manual overrides ----
@@ -766,17 +661,15 @@ export function sitPlayer(state: GameState, playerId: string): GameState {
     teams[player.teamId] = { ...team, slots: team.slots.map((s) => (s === playerId ? null : s)) };
   }
 
-  const sitCount = player.sitCount + 1;
   return {
     ...state,
     teams,
     players: state.players.map((p) =>
       p.id === playerId
-        ? { ...p, status: 'sitting', teamId: null, sitCount, statusRound: state.round }
+        ? { ...p, status: 'sitting', teamId: null, sitCount: p.sitCount + 1, statusRound: state.round }
         : p,
     ),
     sittingOrder: [...state.sittingOrder, playerId],
-    maxSit: Math.max(state.maxSit, sitCount),
     lastError: null,
   };
 }
@@ -842,9 +735,7 @@ export function swapPlayers(state: GameState, playerAId: string, playerBId: stri
     return p;
   });
 
-  const maxSit = players.reduce((max, p) => Math.max(max, p.sitCount), state.maxSit);
-
-  return { ...state, teams, players, sittingOrder, maxSit, lastError: null };
+  return { ...state, teams, players, sittingOrder, lastError: null };
 }
 
 /** Blanks every team's slots and puts everyone back to 'none'/bench.
@@ -870,7 +761,6 @@ export function clearTeams(state: GameState): GameState {
 export function clearSat(state: GameState): GameState {
   return {
     ...state,
-    maxSit: 1,
     round: 0,
     players: state.players.map((p) => ({ ...p, sitCount: 0, statusRound: 0 })),
     lastError: null,
@@ -968,32 +858,4 @@ export function getPlayer(state: GameState, playerId: string): Player | undefine
 
 export function getTeam(state: GameState, teamId: string): Team | undefined {
   return state.teams[teamId];
-}
-
-/**
- * The live version of the isRiskyStreakSetup guardrail: has a fairness gap
- * actually happened just now? True when someone on the bench has sat 2+
- * times while some currently-playing player, on ANY active court, hasn't
- * sat even once. Deliberately not limited to Court 1's win-streak holder -
- * the same gap shows up whenever a player is effectively "protected" from
- * ever being reconsidered, which also happens to a team that cascades
- * winner-to-winner up through Courts 4->3->2->1 (no streak cap applies to
- * that climb, only to Court 1's own win-streak once a team gets there), or
- * after a manual drag-and-drop keeps someone on a team round after round.
- * Returns the specific pair a swap would fix (see the Auto-balance notice
- * in RotationBoard) so the caller doesn't have to re-derive who; null when
- * there's nothing to flag.
- */
-export function findUnfairSecondSit(
-  state: GameState,
-): { repeatSitterId: string; neverSatPlayerId: string } | null {
-  const neverSatPlaying = state.players.find((p) => p.status === 'team' && p.sitCount === 0);
-  if (!neverSatPlaying) return null;
-
-  const repeatSitter = state.sittingOrder
-    .map((id) => getPlayer(state, id))
-    .find((p): p is Player => !!p && p.sitCount >= 2);
-  if (!repeatSitter) return null;
-
-  return { repeatSitterId: repeatSitter.id, neverSatPlayerId: neverSatPlaying.id };
 }

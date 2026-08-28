@@ -131,24 +131,54 @@ Manually bumps `rounds` by 1 (independent escape hatch, e.g. if games are being 
 
 ---
 
-## Data model suggestion for the port
+## What changed in the port
 
-```
-Player { id, name, status: 'none'|'team'|'sitting'|'next'|'holding'|'pending', teamId?, sitCount, lastRoundActive }
-Team   { id, courtId, side: 'white'|'dark', playerIds: [] }
-Court  { id, teamAId, teamBId, sizePerTeam, active }
-GameState {
-  players: Player[],
-  courts: Court[],       // 1-4, derived sizes from distributePlayers table
-  round: number,
-  maxSit: number,        // fairness threshold
-  maxConsecutiveWins: number,  // default 2
-  gameType: 2|3|4|5,     // minimum game format
-  numCourts: 1-4,
-  court1Winner?: teamId,
-  court1WinStreak: number,
-  lastSatPlayerIds: number[],  // last round's sitters (replaces last1..last10)
-}
-```
+Sections 1-5 above describe the *original* app's behavior as a historical reference — they're a faithful account of what `https://www.fdarosa.com/open-gym-basketball.html` actually does, bugs and all, and should stay that way. The real data model for the port lives in `src/types.ts`, which is authoritative; this doc used to sketch a proposed model here before implementation, but that sketch is gone now that the real thing exists — don't resurrect it as a second source of truth.
 
-Key behaviors to preserve: the **fairness-first shuffle cascade** (prefer most-sat-out players, escalate pool only when needed), the **"holding" grace period** (don't replay someone who just sat unless nobody else is eligible), the **winner-stays-with-streak-cap** rotation across courts, and the **contiguous player renumbering** on removal (or better: switch to stable UUIDs instead of positional IDs, which removes the need for the renumbering logic entirely — an easy real win when porting away from the DOM-ID-keyed original).
+Notable differences between the original and the shipped port:
+
+- **Stable UUIDs instead of positional IDs**: every player has a stable `id`; teams hold arrays of ids. This removes the original's `RemovePlayer` renumbering step entirely — removing a player never needs to shift anyone else's number down.
+- **`Team.slots` is a fixed-length-5 array of `(string | null)`, never resized** — not a variable-length `playerIds` list. An earlier version of the port *did* resize it to match court size, which silently stranded a player at an out-of-range index whenever a court shrunk between assignments (see `truncateOversizedTeams` in `gameLogic.ts` and the matching note in CLAUDE.md). Don't reintroduce a variable-length slots array.
+- **Max Team Size** (`maxTeamSize`, new setting, default `null`/uncapped): caps players-per-team so a court never grows past this even if there are enough players to fill a bigger game — the overflow sits and rotates in instead. See `distributePlayers` in `gameLogic.ts`.
+- **Max Players on 1 Court** (`maxSingleCourtPlayers`, new setting, default 13): Court 2 stays off — everyone plays one fuller game on Court 1 — until the player count exceeds this, replacing the original's fixed ">15 players" two-court threshold with an adjustable one.
+- **Drag-and-drop**: manual player movement (bench ↔ team slot, team slot ↔ team slot) via `dnd-kit`, replacing the original's number-entry `sitPlayer()`/`swapPlayers()` flow. Those two functions still exist under the hood (see `gameLogic.ts` section 6) — drag-and-drop is a new UI built on top of them, not a replacement for their logic.
+- **PWA**: installable, works offline once loaded, and auto-updates in the background on the next visit after a new deploy.
+- **Theming**: a light/dark/system app theme, independent of the fixed white/dark *team* jersey colors (which stay fixed regardless of app theme, on purpose — see CLAUDE.md).
+- **Winner Stays On default changed from 2 to 3** (`maxConsecutiveWins`) — a deliberate product decision made during the port, not carried over from the original.
+
+### Second-generation rewrite: fairness ranking replaces the shuffle cascade
+
+The first port iteration (everything above this subsection) was itself a fairly literal
+translation of the original's tiered shuffle-cascade plus `holding`/`pending` player statuses
+(section 3 above). That's since been replaced with a simpler model, worked out directly with
+the game manager who runs sessions with this app: one global ranking (highest `sitCount` plays
+next; tie-broken by not having sat last round; then — first game of the day only, when
+everyone's tied at `sitCount` 0 — by roster join order; then randomly for any remaining tie)
+decides who fills whatever's genuinely open. Two things are handled *before* that ranking runs,
+as deterministic pre-steps rather than folded into it:
+
+- A **promotion ladder**: each court's winner (other than Court 1's own) relocates as a block
+  into the court below it — Court 2's winner takes Court 1's loser's slot, Court 3's winner
+  takes the slot Court 2's winner just vacated, and so on. This replaces the original/first-port
+  `moveTeam` cascade (which dumped both Court 3's and Court 4's winners into Court 2 at once)
+  with a cleaner one-hop-at-a-time version — see `updateWins` in `gameLogic.ts`.
+- The **Court 1 win-streak cap** now branches on how many courts are actually active: with only
+  1 active court, hitting the cap still clears *both* Court 1 teams (unchanged from the first
+  port iteration, same small-bench reasoning as before); with 2+ active courts, it clears only
+  the streaking winner — the ladder above already guarantees the loser's slot turns over
+  regardless, so there's no need to force that side too.
+
+Both **fairness guardrails** from the first port iteration (`isRiskyStreakSetup`'s confirm
+dialog, `findUnfairSecondSit`'s "Auto-balance" notice) were removed outright rather than kept
+dormant — the specific failure mode they existed to catch (someone sitting twice before someone
+else sits once) is structurally unreachable under the new ranking, so there was no real risk
+left for either to guard against. In their place, hitting the win-streak cap now sets
+`state.lastNotice`, a new non-error toast (rendered next to `lastError`) so the game manager
+notices a team just got broken up even though nothing failed.
+
+The `'holding'`/`'pending'` player statuses described in section 3 above no longer exist in the
+port — a player is just `'team'` or `'sitting'` (plus `'none'` before they've ever played).
+
+Key behaviors preserved from the original, still: prioritizing whoever's sat out the most when
+deciding who plays next, and winner-stays-on rotation cascading across courts (now a one-hop
+promotion ladder rather than a two-hop dump into Court 2 — see above).

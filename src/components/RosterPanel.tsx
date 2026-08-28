@@ -14,6 +14,11 @@ export function RosterPanel() {
           {state.lastError}
         </p>
       )}
+      {state.lastNotice && (
+        <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {state.lastNotice}
+        </p>
+      )}
       <ul className="mt-4">
         {state.players.map((player) => (
           <RosterRow key={player.id} player={player} />

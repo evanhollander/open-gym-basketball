@@ -5,8 +5,6 @@ const STATUS_LABEL: Record<Player['status'], string> = {
   none: 'Not yet played',
   team: 'Playing',
   sitting: 'Sitting',
-  holding: 'Holding',
-  pending: 'Pending',
 };
 
 export function RosterRow({ player }: { player: Player }) {
