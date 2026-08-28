@@ -273,6 +273,35 @@ export function getActiveCourts(state: GameState): Court[] {
   return state.courts.filter((c) => c.active);
 }
 
+/**
+ * Guardrail check offered on "Assign Teams": with a single, mostly-full
+ * court (bench smaller than a full team) and a high Winner Stays On cap, the
+ * losing side's revolving door can't be fully refilled from the bench alone
+ * - some just-benched player is always recycled straight back in. A long win
+ * streak compounds that recycling round after round until someone sits
+ * twice before the protected winning team has sat even once. This doesn't
+ * fire for multi-court setups or a big-enough bench, since the bench alone
+ * can cover a full team swap there and the tension doesn't come up.
+ *
+ * This is a real risk under the current ranking model too, not just the
+ * original: Court 1's winner is fully protected/deterministic (never
+ * enters the fairness ranking) for as long as the streak continues, so
+ * their sitCount can freeze for `maxConsecutiveWins - 1` rounds while a
+ * small bench cycles - that's exactly the gap this catches.
+ */
+export function isRiskyStreakSetup(state: GameState): boolean {
+  if (state.numCourts !== 1 || state.maxConsecutiveWins <= 2) return false;
+  const sizes = distributePlayers(
+    state.numCourts,
+    state.players.length,
+    state.gameType,
+    state.maxTeamSize,
+    state.maxSingleCourtPlayers,
+  );
+  const bench = state.players.length - sizes.court1 * 2;
+  return bench > 0 && bench < sizes.court1;
+}
+
 // ---- 3. Fairness ranking ----
 // Who plays next is decided by one global ranking, not a tiered fallback
 // cascade: every player not already deterministically placed by the
@@ -864,4 +893,31 @@ export function getPlayer(state: GameState, playerId: string): Player | undefine
 
 export function getTeam(state: GameState, teamId: string): Team | undefined {
   return state.teams[teamId];
+}
+
+/**
+ * The live version of the isRiskyStreakSetup guardrail: has a fairness gap
+ * actually happened just now? True when someone on the bench has sat 2+
+ * times while some currently-playing player, on ANY active court, hasn't
+ * sat even once. Deliberately not limited to Court 1's win-streak holder -
+ * the same gap shows up whenever a player is effectively "protected" from
+ * ever being reconsidered: a team promoted all the way up the ladder
+ * without ever losing (no streak cap applies until it reaches Court 1), or
+ * after a manual drag-and-drop keeps someone on a team round after round.
+ * Returns the specific pair a swap would fix (see the Auto-balance notice
+ * in RotationBoard) so the caller doesn't have to re-derive who; null when
+ * there's nothing to flag.
+ */
+export function findUnfairSecondSit(
+  state: GameState,
+): { repeatSitterId: string; neverSatPlayerId: string } | null {
+  const neverSatPlaying = state.players.find((p) => p.status === 'team' && p.sitCount === 0);
+  if (!neverSatPlaying) return null;
+
+  const repeatSitter = state.sittingOrder
+    .map((id) => getPlayer(state, id))
+    .find((p): p is Player => !!p && p.sitCount >= 2);
+  if (!repeatSitter) return null;
+
+  return { repeatSitterId: repeatSitter.id, neverSatPlayerId: neverSatPlaying.id };
 }

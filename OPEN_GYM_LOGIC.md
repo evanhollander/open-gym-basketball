@@ -169,12 +169,20 @@ as deterministic pre-steps rather than folded into it:
   regardless, so there's no need to force that side too.
 
 Both **fairness guardrails** from the first port iteration (`isRiskyStreakSetup`'s confirm
-dialog, `findUnfairSecondSit`'s "Auto-balance" notice) were removed outright rather than kept
-dormant — the specific failure mode they existed to catch (someone sitting twice before someone
-else sits once) is structurally unreachable under the new ranking, so there was no real risk
-left for either to guard against. In their place, hitting the win-streak cap now sets
-`state.lastNotice`, a new non-error toast (rendered next to `lastError`) so the game manager
-notices a team just got broken up even though nothing failed.
+dialog, `findUnfairSecondSit`'s "Auto-balance" notice) were briefly removed during this rewrite,
+on the premise that the failure mode they exist to catch (someone sitting twice before someone
+else sits once) was structurally unreachable under the new ranking - true for an earlier draft
+where a winning team competed for its own spot via a ranking tie-break, but **not true for what
+actually shipped**: Court 1's winner is fully protected/deterministic and never enters the
+ranking at all for as long as the streak continues, so a small enough bench can still open a 2+
+sitCount spread before the cap fires (confirmed with the exact real-world setup that first
+surfaced this: 13 players, 1 court, `maxConsecutiveWins` 3). Both guardrails were restored -
+don't remove them again without verifying against the actual shipped placement mechanism, not
+an earlier draft of it.
+
+Hitting the win-streak cap also sets `state.lastNotice`, a non-error toast (rendered next to
+`lastError`) so the game manager notices a team just got broken up even though nothing failed -
+this is a genuinely new addition, additive to (not a replacement for) the two guardrails above.
 
 The `'holding'`/`'pending'` player statuses described in section 3 above no longer exist in the
 port — a player is just `'team'` or `'sitting'` (plus `'none'` before they've ever played).

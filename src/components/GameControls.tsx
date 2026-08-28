@@ -1,4 +1,5 @@
 import { useGameDispatch, useGameState } from '../state/context';
+import { isRiskyStreakSetup } from '../state/gameLogic';
 
 export function GameControls() {
   const state = useGameState();
@@ -16,6 +17,23 @@ export function GameControls() {
   // which instead silently started a new round and bumped sit counts.
   const roundInProgress = state.players.some((p) => p.status === 'team');
 
+  // With a small bench and a high Winner Stays On cap (see
+  // isRiskyStreakSetup), the bench can't fully refill the losing side on its
+  // own - someone ends up sitting a 2nd time before the protected winning
+  // team has sat once. Offer to lower the cap right when a fresh round is
+  // about to start, rather than only surfacing the problem mid-rotation.
+  function handleAssignTeams() {
+    if (isRiskyStreakSetup(state)) {
+      const lower = window.confirm(
+        `With ${state.players.length} players on 1 court, keeping a team on the court for ` +
+          `${state.maxConsecutiveWins} wins in a row can force someone to sit twice before everyone else ` +
+          `has sat once. Set "Winner Stays On" to 2 for more balanced rotation?`,
+      );
+      if (lower) dispatch({ type: 'SET_MAX_CONSECUTIVE_WINS', value: 2 });
+    }
+    dispatch({ type: 'ASSIGN_TEAMS' });
+  }
+
   return (
     <div className="flex flex-wrap justify-center gap-2">
       {roundInProgress ? (
@@ -29,7 +47,7 @@ export function GameControls() {
       ) : (
         <button
           type="button"
-          onClick={() => dispatch({ type: 'ASSIGN_TEAMS' })}
+          onClick={handleAssignTeams}
           className="rounded bg-blue-600 px-4 py-2 text-white active:bg-blue-700"
         >
           Assign Teams
