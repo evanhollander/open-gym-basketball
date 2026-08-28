@@ -710,14 +710,20 @@ export function swapPlayers(state: GameState, playerAId: string, playerBId: stri
   const b = state.players.find((p) => p.id === playerBId);
   if (!a || !b) throw new Error('Player not found.');
 
+  // Both ids are replaced in a single pass per team, not two sequential
+  // passes - when a and b are on the *same* team, doing it as two separate
+  // single-id replacements meant the second pass read the first pass's
+  // already-mutated slots (both slots now holding b's id) and blew away
+  // every occurrence, leaving both slots showing a's id and b gone
+  // entirely, instead of the two simply trading places.
   const teams = { ...state.teams };
-  if (a.teamId) {
-    const team = teams[a.teamId];
-    teams[a.teamId] = { ...team, slots: team.slots.map((s) => (s === playerAId ? playerBId : s)) };
-  }
-  if (b.teamId) {
-    const team = teams[b.teamId];
-    teams[b.teamId] = { ...team, slots: team.slots.map((s) => (s === playerBId ? playerAId : s)) };
+  const teamIds = new Set([a.teamId, b.teamId].filter((id): id is string => id !== null));
+  for (const teamId of teamIds) {
+    const team = teams[teamId];
+    teams[teamId] = {
+      ...team,
+      slots: team.slots.map((s) => (s === playerAId ? playerBId : s === playerBId ? playerAId : s)),
+    };
   }
 
   const sittingOrder = state.sittingOrder.map((id) => {

@@ -102,6 +102,33 @@ describe('movePlayer', () => {
     expect(next.players.find((p) => p.id === b.id)!.teamId).toBe('team-1');
   });
 
+  it('team slot -> occupied slot on the SAME team: swaps the two without duplicating either', () => {
+    // Regression: swapping two players already on the same team used to
+    // corrupt the slots array - the second player's slot got overwritten
+    // twice in sequence (once treating it as "a's new home", once as "b's
+    // old home"), so both slots ended up showing the same player and the
+    // other one vanished from the team entirely.
+    const state = assignTeams(withPlayers(10), false);
+    const teamId = 'team-1';
+    const [aSlotIndex, bSlotIndex] = state.teams[teamId].slots
+      .map((_, i) => i)
+      .filter((i) => state.teams[teamId].slots[i] !== null)
+      .slice(0, 2);
+    const aId = state.teams[teamId].slots[aSlotIndex]!;
+    const bId = state.teams[teamId].slots[bSlotIndex]!;
+
+    const next = movePlayer(state, aId, { kind: 'team-slot', teamId, slotIndex: bSlotIndex });
+
+    expect(next.teams[teamId].slots[bSlotIndex]).toBe(aId);
+    expect(next.teams[teamId].slots[aSlotIndex]).toBe(bId);
+    expect(next.players.find((p) => p.id === aId)!.teamId).toBe(teamId);
+    expect(next.players.find((p) => p.id === bId)!.teamId).toBe(teamId);
+    // Every slot still references a distinct player - nobody duplicated,
+    // nobody vanished.
+    const filled = next.teams[teamId].slots.filter((s): s is string => s !== null);
+    expect(new Set(filled).size).toBe(filled.length);
+  });
+
   it('dropping a player on themself is a no-op', () => {
     const state = assignTeams(withPlayers(10), false);
     const player = state.players.find((p) => p.status === 'team')!;
