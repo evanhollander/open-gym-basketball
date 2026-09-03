@@ -440,6 +440,15 @@ function truncateOversizedTeams(state: GameState): GameState {
         ...next,
         teams: { ...next.teams, [teamId]: { ...team, slots } },
         players: next.players.map((p) => (removedIds.includes(p.id) ? { ...p, status: 'sitting', teamId: null } : p)),
+        // Matches sitPlayer()'s convention: anyone who becomes 'sitting'
+        // must also be appended to sittingOrder, since that - not player
+        // status - is what BenchList actually renders from. Skipping this
+        // reproduces the exact "phantom player" bug the comment above
+        // guards against for `slots`, just in the bench instead of the
+        // court: status says 'sitting' but they're invisible everywhere,
+        // since Reshuffle Teams (unlike a fresh Assign Teams) never runs
+        // resolveRound afterward to rebuild sittingOrder from scratch.
+        sittingOrder: [...next.sittingOrder, ...removedIds],
       };
     }
   }

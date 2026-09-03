@@ -97,6 +97,51 @@ describe('assignTeams', () => {
     expect(cappedAfter.players).toHaveLength(18);
     expect(countByStatus(cappedAfter).team).toBe(16);
     expect(countByStatus(cappedAfter).sitting).toBe(2);
+    // Regression: Reshuffle Teams never runs resolveRound (by design - "no
+    // bench, no ranking"), so anyone truncateOversizedTeams newly benches
+    // during a Reshuffle-triggered shrink must be appended to sittingOrder
+    // itself. BenchList renders from sittingOrder, not player.status - a
+    // truncated player left out of it has status 'sitting' but is invisible
+    // everywhere (not on a court, not on the bench).
+    expect(cappedAfter.sittingOrder).toHaveLength(2);
+    expect(new Set(cappedAfter.sittingOrder)).toEqual(
+      new Set(cappedAfter.players.filter((p) => p.status === 'sitting').map((p) => p.id)),
+    );
+  });
+
+  it('reshuffle-triggered court shrink from a dropped roster count (not just a settings change) also keeps sittingOrder in sync', () => {
+    // Reproduces the reported bug: 15 players (gameType 3v3, maxSingleCourtPlayers
+    // lowered to 12) assign to two 4v4/3v3-ish courts; 2 players leave; Reshuffle
+    // Teams recomputes both courts down to 3v3, which truncates Court 1 from 4 to
+    // 3 per team - those 2 truncated players must show up on the bench, not vanish.
+    let state = withPlayers(15);
+    state = { ...state, numCourts: 2, maxSingleCourtPlayers: 12 };
+    const assigned = assignTeams(state, false);
+    expect(assigned.courts.find((c) => c.index === 1)!.sizePerTeam).toBe(4);
+
+    const [leaver1, leaver2] = assigned.players.filter((p) => p.status === 'team');
+    const shrunkRoster = {
+      ...assigned,
+      players: assigned.players.filter((p) => p.id !== leaver1.id && p.id !== leaver2.id),
+      teams: {
+        ...assigned.teams,
+        [leaver1.teamId!]: {
+          ...assigned.teams[leaver1.teamId!],
+          slots: assigned.teams[leaver1.teamId!].slots.map((s) => (s === leaver1.id ? null : s)),
+        },
+        [leaver2.teamId!]: {
+          ...assigned.teams[leaver2.teamId!],
+          slots: assigned.teams[leaver2.teamId!].slots.map((s) => (s === leaver2.id ? null : s)),
+        },
+      },
+    };
+
+    const reshuffled = reshuffleTeams(shrunkRoster);
+    expect(reshuffled.courts.find((c) => c.index === 1)!.sizePerTeam).toBe(3);
+    expect(reshuffled.players).toHaveLength(13);
+    expect(new Set(reshuffled.sittingOrder)).toEqual(
+      new Set(reshuffled.players.filter((p) => p.status === 'sitting').map((p) => p.id)),
+    );
   });
 
   it('when a team shrinks, benches whoever has sat the least first - not whoever happens to be re-benched already', () => {
