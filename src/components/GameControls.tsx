@@ -1,5 +1,5 @@
 import { useGameDispatch, useGameState } from '../state/context';
-import { isRiskyStreakSetup } from '../state/gameLogic';
+import { courtShrinkWarning, isRiskyStreakSetup } from '../state/gameLogic';
 
 export function GameControls() {
   const state = useGameState();
@@ -22,7 +22,24 @@ export function GameControls() {
   // own - someone ends up sitting a 2nd time before the protected winning
   // team has sat once. Offer to lower the cap right when a fresh round is
   // about to start, rather than only surfacing the problem mid-rotation.
+  // If the roster (or a sizing setting) has changed enough since teams were
+  // last assigned that Assign/Reshuffle would drop an active court entirely
+  // - see courtShrinkWarning - confirm before folding those players into a
+  // bigger single game instead of doing it silently. Cancel leaves
+  // everything untouched so the setup can be fixed first (e.g. lowering
+  // "Max Players for Single Court" to keep both courts running).
+  function confirmCourtShrink(): boolean {
+    const warning = courtShrinkWarning(state);
+    if (!warning) return true;
+    return window.confirm(
+      `${state.players.length} players will only support ${warning.to} court${warning.to === 1 ? '' : 's'} ` +
+        `instead of ${warning.from}. Cancel to adjust a setting like "Max Players for Single Court" first, ` +
+        `or OK to continue with ${warning.to}.`,
+    );
+  }
+
   function handleAssignTeams() {
+    if (!confirmCourtShrink()) return;
     if (isRiskyStreakSetup(state)) {
       const lower = window.confirm(
         `With ${state.players.length} players on 1 court, keeping a team on the court for ` +
@@ -34,12 +51,17 @@ export function GameControls() {
     dispatch({ type: 'ASSIGN_TEAMS' });
   }
 
+  function handleReshuffleTeams() {
+    if (!confirmCourtShrink()) return;
+    dispatch({ type: 'RESHUFFLE_TEAMS' });
+  }
+
   return (
     <div className="flex flex-wrap justify-center gap-2">
       {roundInProgress ? (
         <button
           type="button"
-          onClick={() => dispatch({ type: 'RESHUFFLE_TEAMS' })}
+          onClick={handleReshuffleTeams}
           className="rounded bg-blue-600 px-4 py-2 text-white active:bg-blue-700"
         >
           Reshuffle Teams

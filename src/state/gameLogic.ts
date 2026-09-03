@@ -302,6 +302,32 @@ export function isRiskyStreakSetup(state: GameState): boolean {
   return bench > 0 && bench < sizes.court1;
 }
 
+/**
+ * Detects when the roster has shrunk (or a sizing setting has changed)
+ * enough since teams were last assigned that re-running Assign/Reshuffle
+ * Teams would drop an active court entirely, rather than just resizing it
+ * - e.g. losing 2 of 15 players can cross the `maxSingleCourtPlayers` gate
+ * and turn off Court 2 completely, folding everyone into one bigger game
+ * with no indication why. Returns null when nothing would shrink (including
+ * the ordinary case of the very first Assign Teams of the day, when no
+ * court is active yet to shrink from).
+ */
+export function courtShrinkWarning(state: GameState): { from: number; to: number } | null {
+  const currentActive = getActiveCourts(state).length;
+  if (currentActive === 0) return null;
+
+  const sizes = distributePlayers(
+    state.numCourts,
+    state.players.length,
+    state.gameType,
+    state.maxTeamSize,
+    state.maxSingleCourtPlayers,
+  );
+  const newActive = [sizes.court1, sizes.court2, sizes.court3, sizes.court4].filter((size) => size > 0).length;
+
+  return newActive < currentActive ? { from: currentActive, to: newActive } : null;
+}
+
 // ---- 3. Fairness ranking ----
 // Who plays next is decided by one global ranking, not a tiered fallback
 // cascade: every player not already deterministically placed by the
