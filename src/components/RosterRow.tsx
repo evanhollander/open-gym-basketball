@@ -19,6 +19,18 @@ const STATUS_DOT: Record<Player['status'], string> = {
 export function RosterRow({ player }: { player: Player }) {
   const dispatch = useGameDispatch();
 
+  // Unlike Clear Teams/Clear # Games Sat (both easily redone), Remove
+  // discards a player's sit/win history for good - an accidental tap had no
+  // guard at all, unlike every other destructive action in this app. Matches
+  // the window.confirm pattern already used for the Assign/Reshuffle
+  // guardrails in GameControls.tsx rather than introducing a styled modal
+  // just for this one case.
+  function handleRemove() {
+    if (window.confirm(`Remove ${player.name}? This discards their sit/win history.`)) {
+      dispatch({ type: 'REMOVE_PLAYER', playerId: player.id });
+    }
+  }
+
   return (
     <li className="flex items-center justify-between gap-3 border-b border-gray-200 py-2 dark:border-gray-700">
       <div className="min-w-0">
@@ -32,7 +44,7 @@ export function RosterRow({ player }: { player: Player }) {
       </div>
       <button
         type="button"
-        onClick={() => dispatch({ type: 'REMOVE_PLAYER', playerId: player.id })}
+        onClick={handleRemove}
         className="shrink-0 rounded border border-red-300 px-3 py-1 text-sm text-red-600 active:bg-red-50 dark:border-red-800 dark:text-red-400"
       >
         Remove
