@@ -1,18 +1,16 @@
 import { useDraggable } from '@dnd-kit/core';
 import type { Player, TeamSide } from '../types';
 
-// A small swatch on each player row is the only thing (besides the header
-// above) that signals which team they're on, which mattered most in dark
-// mode, where a slot's own border/background gives no such cue. Distinguish
-// the two sides by shape (filled vs. hollow), both in the same neutral gray
-// tone, rather than trying to recreate literal white/black jersey fills - a
-// "white" fill is invisible on the card's own white background in light
-// mode, and a "dark" fill is invisible on the card's own dark background in
-// dark mode; either one just reproduces the same contrast problem one level
-// down depending on theme.
+// Same fixed jersey colors as CourtView's SIDE_STYLES (reused, not
+// reinvented - that map already proves out at this exact bg+ring
+// combination in both themes for the header, so the dot gets the same
+// treatment instead of a separate "filled vs. hollow, same gray" scheme
+// that technically had enough contrast but visually read backwards: a gray
+// dot for "White" and a near-white dot for "Dark" doesn't match either
+// label at a glance, which is the whole point of the dot.
 const SIDE_DOT: Record<TeamSide, string> = {
-  white: 'bg-gray-400 dark:bg-gray-300',
-  dark: 'bg-transparent ring-2 ring-gray-400 dark:ring-gray-300',
+  white: 'bg-white ring-2 ring-gray-300',
+  dark: 'bg-gray-900 ring-2 ring-gray-500',
 };
 
 /** A single player, shown on a team slot or the bench. Draggable to any
