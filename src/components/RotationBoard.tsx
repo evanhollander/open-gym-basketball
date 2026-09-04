@@ -28,6 +28,12 @@ export function RotationBoard() {
   // (not dispatched) until Submit - lets you tap around and change your mind
   // before it counts.
   const [winners, setWinners] = useState<Record<string, string>>({});
+  // Local, not state.lastError: that banner renders up in GameControls,
+  // above the courts - on a phone the Submit button is a full scroll below
+  // it, so a missing-winner error was appearing off-screen from the tap
+  // that caused it. Checking here also lets a failed submit leave `winners`
+  // untouched instead of wiping every pick made so far.
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // TouchSensor's activation delay stops a drag from starting on what's
   // actually a page-scroll gesture on phones (this tool is meant to be used
@@ -50,6 +56,7 @@ export function RotationBoard() {
   }
 
   function selectWinner(courtId: string, teamId: string) {
+    setSubmitError(null);
     setWinners((prev) => {
       const next = { ...prev };
       if (next[courtId] === teamId) {
@@ -62,8 +69,17 @@ export function RotationBoard() {
   }
 
   function submitWinners() {
+    // Same check updateWins itself makes, but done here so a missing pick
+    // can be reported right next to the button that was just tapped, and so
+    // the picks already made survive instead of being cleared below.
+    const missingCourt = activeCourts.find((c) => !winners[c.id]);
+    if (missingCourt) {
+      setSubmitError(`Select a winner for Court ${missingCourt.index}.`);
+      return;
+    }
     dispatch({ type: 'SUBMIT_WINNERS', winners });
     setWinners({});
+    setSubmitError(null);
   }
 
   const draggingPlayer = draggingId ? getPlayer(state, draggingId) : undefined;
@@ -97,6 +113,11 @@ export function RotationBoard() {
             margin (see the 2603bf7 follow-up: 5xl alone left ~490px of
             unused space per side on a typical wide external display). */}
         <div className={'mx-auto mt-4 ' + (isMultiCourt ? 'max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl' : 'max-w-md md:max-w-xl lg:max-w-2xl xl:max-w-3xl')}>
+          {inWinnerSelectMode && (
+            <p className="mb-2 text-center text-sm text-gray-500 dark:text-gray-400">
+              Tap the winning team on each court, then Submit.
+            </p>
+          )}
           <div className={'grid grid-cols-1 gap-4' + (isMultiCourt ? ' md:grid-cols-2' : '')}>
             {activeCourts.map((court) => (
               <CourtView
@@ -116,6 +137,9 @@ export function RotationBoard() {
               >
                 Submit Winners / Next Game
               </button>
+              {submitError && (
+                <p className="mt-2 text-sm text-red-700 dark:text-red-300">{submitError}</p>
+              )}
             </div>
           )}
           <div className="mt-4">
