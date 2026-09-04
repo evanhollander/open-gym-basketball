@@ -70,7 +70,7 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
       )}
       <div className="flex flex-col gap-1 sm:gap-1.5">
         {team.slots.slice(0, size).map((playerId, i) => (
-          <TeamSlot key={i} teamId={teamId} slotIndex={i} playerId={playerId} />
+          <TeamSlot key={i} teamId={teamId} slotIndex={i} playerId={playerId} side={team.side} />
         ))}
       </div>
     </div>
