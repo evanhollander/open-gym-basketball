@@ -506,12 +506,18 @@ function fillOpenSlots(state: GameState, candidates: Player[]): GameState {
  * Decides who fills every slot that isn't already deterministically
  * assigned (`protectedIds` - Court 1's own winner, plus anyone the
  * win-streak ladder just promoted; empty for a fresh Assign Teams with no
- * winners yet). Everyone else currently on a team ("contested incumbents" -
- * typically a losing team the ladder didn't claim) competes on equal
- * footing with the whole bench: rank the combined pool, and whoever ranks
- * in the top `openSlotCount` plays. An incumbent who makes the cut keeps
- * their exact slot untouched; one who doesn't gets bumped to the bench,
- * freeing their slot for whoever from the bench *did* make the cut.
+ * winners yet). Everyone else currently on a team ("contested incumbents")
+ * competes on equal footing with the whole bench: rank the combined pool,
+ * and whoever ranks in the top `openSlotCount` plays. An incumbent who makes
+ * the cut keeps their exact slot untouched; one who doesn't gets bumped to
+ * the bench, freeing their slot for whoever from the bench *did* make the
+ * cut. In practice `contestedIncumbents` is currently always empty at both
+ * call sites - assignTeams protects everyone already-'team' wholesale, and
+ * updateWins now clears every court's loser to the bench before calling
+ * this (see the comment in updateWins) - so every non-protected player it
+ * sees is already on the bench. Kept generic rather than assuming that, so
+ * a future caller that *does* leave incumbents contested doesn't need this
+ * function rewritten.
  */
 function resolveOpenSlots(state: GameState, protectedIds: Set<string>, rng: () => number = Math.random): GameState {
   const capacity = getActiveCourts(state).reduce((sum, c) => sum + c.sizePerTeam * 2, 0);
@@ -600,12 +606,18 @@ export function reshuffleTeams(state: GameState): GameState {
 // promotes a court's winner one hop toward Court 1: Court 2's winner takes
 // Court 1's loser's slot; Court 3's winner takes the slot Court 2's winner
 // just vacated; Court 4's winner takes the slot Court 3's winner just
-// vacated; and so on for any future court count. This is deterministic -
-// no ranking involved - and every court's own *loser* (other than Court 1's,
-// which is unconditionally displaced by the promotion above) is left in
-// place and folded into the normal fairness ranking along with the bench,
-// same as anyone else: they keep their seat only if they still rank well
-// enough.
+// vacated; and so on for any future court count. This is deterministic - no
+// ranking involved. Every court's own *loser*, on every active court
+// (including Court 1's), is unconditionally cleared to the bench - they
+// don't compete to keep their seat, they always give it up and re-earn a
+// spot (any spot) via the normal fairness ranking along with everyone else
+// on the bench. This used to be true only for Court 1's loser, with every
+// other court's own loser left in place as a "contested incumbent" ranked
+// against the bench - but that competition was never real once the bench
+// was thin or empty, since a fully-packed roster makes the ranked pool
+// exactly match the open-slot count and nobody actually loses. See the
+// comment above the loser-clearing loop in updateWins for the real case
+// that exposed this.
 
 function otherTeamOnCourt(court: Court, teamId: string): string {
   return teamId === court.teamAId ? court.teamBId : court.teamAId;
@@ -668,6 +680,41 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
       : `Team ${court1WinnerId.split('-')[1]} (${next.teams[court1WinnerId].side === 'white' ? 'White' : 'Dark'}) reshuffled after ${next.maxConsecutiveWins} wins in a row.`;
   }
 
+  // ---- Clear every court's losing team into the pool ----
+  // Every active court's loser goes straight to the bench, unconditionally -
+  // not just Court 1's own loser (previously the only one guaranteed to be
+  // cleared) or whichever court's loser the promotion ladder happened to
+  // overwrite as a side effect of moving a winner in. Before this, Court 2+'s
+  // own loser was left in place as a "contested incumbent," bumped only if
+  // it lost a fairness-ranking tiebreak against the bench - but that
+  // competition was never real once the bench was thin or empty: a
+  // fully-packed roster makes the ranked pool exactly match the open-slot
+  // count, so everyone in it "wins" by default. Real reported case: 14
+  // players on a 4v4/3v3 split (zero bench) kept the exact same 3 players on
+  // Court 2's losing team for 5 straight rounds, since there was never
+  // anyone left over to outrank them. Clearing every loser unconditionally
+  // guarantees they re-earn their seat via the same ranking as everyone
+  // else, every round, regardless of bench size - real turnover even at
+  // zero bench, since the loser's own bodies now compete on equal footing
+  // with the rest of the bench instead of passively keeping their spot.
+  //
+  // This also means every destination slot the ladder loop below writes
+  // into is already empty by the time it gets there - Court 1's loser slot
+  // is cleared here, and each higher court's destination is the previous
+  // iteration's winner slot, self-cleared within that same iteration - so
+  // the ladder no longer needs to compute or displace prior occupants.
+  for (const court of activeCourts) {
+    const winnerId = winners[court.id];
+    const loserId = otherTeamOnCourt(court, winnerId);
+    const team = next.teams[loserId];
+    if (team.slots.every((s) => s === null)) continue; // already cleared above (streak-cap reset)
+    next = {
+      ...next,
+      teams: { ...next.teams, [loserId]: { ...team, slots: team.slots.map(() => null) } },
+      players: next.players.map((p) => (p.teamId === loserId ? { ...p, status: 'sitting', teamId: null } : p)),
+    };
+  }
+
   // ---- Ladder: promote each court's winner into the court below it ----
   const protectedIds = new Set<string>();
   if (!capHit) {
@@ -681,21 +728,15 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
     const winnerId = winners[court.id];
     const winnerTeam = next.teams[winnerId];
     const movedIds = winnerTeam.slots.filter((id): id is string => id !== null);
-    const destTeam = next.teams[destinationTeamId];
-    const displacedIds = destTeam.slots.filter((id): id is string => id !== null);
 
     next = {
       ...next,
       teams: {
         ...next.teams,
         [winnerId]: { ...winnerTeam, slots: winnerTeam.slots.map(() => null) },
-        [destinationTeamId]: { ...destTeam, slots: [...winnerTeam.slots] },
+        [destinationTeamId]: { ...next.teams[destinationTeamId], slots: [...winnerTeam.slots] },
       },
-      players: next.players.map((p) => {
-        if (movedIds.includes(p.id)) return { ...p, teamId: destinationTeamId };
-        if (displacedIds.includes(p.id)) return { ...p, status: 'sitting', teamId: null };
-        return p;
-      }),
+      players: next.players.map((p) => (movedIds.includes(p.id) ? { ...p, teamId: destinationTeamId } : p)),
     };
     for (const id of movedIds) protectedIds.add(id);
     destinationTeamId = winnerId;

@@ -271,4 +271,50 @@ describe('updateWins - multi-court ladder', () => {
     }
     expect(sawWinnerBrokenUp).toBe(true);
   });
+
+  // Regression: a real reported case with 14 players (numCourts: 2 ->
+  // 4v4/3v3, exactly 14 seats, zero bench) had Court 2's own losing team -
+  // never touched by the promotion ladder, and never previously
+  // guaranteed to be displaced - stay literally identical for 5 straight
+  // rounds. With zero bench, the old "contested incumbent" ranking had no
+  // real competition (the candidate pool exactly matched the open-slot
+  // count, so everyone in it "won" by default). Every court's loser is now
+  // unconditionally cleared to the bench, so it re-earns a spot alongside
+  // everyone else regardless of bench size.
+  it('rotates Court 2\'s own losing team even with zero bench, instead of leaving it untouched', () => {
+    let state = withPlayers(14, { ...createInitialState(), numCourts: 2 }); // 4v4 + 3v3, 0 bench
+    state = assignTeams(state, false);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    const court2 = state.courts.find((c) => c.index === 2)!;
+    expect(court1.sizePerTeam).toBe(4);
+    expect(court2.sizePerTeam).toBe(3);
+    expect(state.players.length - (court1.sizePerTeam + court2.sizePerTeam) * 2).toBe(0); // confirm zero bench
+
+    const court2LoserId = court2.teamBId; // teamB always loses on Court 2 below
+    const sameLoserEveryRound = (): boolean => {
+      let s = state;
+      const compositions: string[][] = [];
+      for (let round = 0; round < 5; round++) {
+        s = updateWins(s, { [court1.id]: court1.teamAId, [court2.id]: court2.teamAId });
+        compositions.push([...s.teams[court2LoserId].slots].filter((id): id is string => id !== null).sort());
+      }
+      return compositions.every((c) => JSON.stringify(c) === JSON.stringify(compositions[0]));
+    };
+    expect(sameLoserEveryRound()).toBe(false);
+  });
+
+  it('keeps every player accounted for exactly once (on a court or the bench) after several zero-bench rounds', () => {
+    let state = withPlayers(14, { ...createInitialState(), numCourts: 2 }); // 4v4 + 3v3, 0 bench
+    state = assignTeams(state, false);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    const court2 = state.courts.find((c) => c.index === 2)!;
+
+    for (let round = 0; round < 5; round++) {
+      state = updateWins(state, { [court1.id]: court1.teamAId, [court2.id]: court2.teamAId });
+      const onCourt = Object.values(state.teams).flatMap((t) => t.slots.filter((s): s is string => s !== null));
+      const combined = [...onCourt, ...state.sittingOrder].sort();
+      expect(combined).toEqual(state.players.map((p) => p.id).sort());
+      expect(new Set(combined).size).toBe(state.players.length);
+    }
+  });
 });
