@@ -848,9 +848,10 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
 
 // ---- Manual overrides ----
 // Replaces the original's sitPlayer()/swapPlayers(). No dedicated UI calls
-// these directly anymore - dragging a player card (movePlayer, section 6)
-// covers both cases - but movePlayer's team-slot-to-bench and
-// swap-onto-an-occupied-slot cases build on top of these two functions.
+// these directly anymore - tapping a player card to select it, then tapping
+// a target (movePlayer, section 6) covers both cases - but movePlayer's
+// team-slot-to-bench and swap-onto-an-occupied-slot cases build on top of
+// these two functions.
 
 /** Manually benches a player who's currently on a team. */
 export function sitPlayer(state: GameState, playerId: string): GameState {
@@ -978,26 +979,29 @@ export function clearSat(state: GameState): GameState {
   };
 }
 
-// ---- 6. Manual player movement (drag-and-drop) ----
+// ---- 6. Manual player movement (tap-to-select, tap-to-target) ----
 // This is the new part - the original had no equivalent, just the number-
 // entry sitPlayer()/swapPlayers() from the section above. `movePlayer` is
-// the single function dnd-kit's onDragEnd calls (see RotationBoard.tsx):
-// every drag - bench card onto a team slot, team card onto another slot,
-// team card onto the bench - funnels through here, so all the "is this
-// drop allowed and what does it do" logic lives in one place instead of
-// being scattered across drag-handler callbacks.
+// the single function RotationBoard.tsx's tile-click handler calls once a
+// selected player and a tapped target are both known (see TileSelection.tsx/
+// PlayerCard.tsx - a plain tap-then-tap UI, not drag-and-drop, since the
+// game manager using this courtside found dragging fiddly): tapping a
+// selected bench card onto a team slot, a team card onto another slot, a
+// team card onto the bench - all of it funnels through here, so all the "is
+// this move allowed and what does it do" logic lives in one place instead
+// of being scattered across click handlers.
 //
-// Drop outcomes:
+// Move outcomes:
 //   bench      -> empty team slot   : place them, refund an accidental
 //                                      same-round sit-count bump (see below)
 //   bench      -> occupied team slot: swap - the occupant goes to the bench
 //   team slot  -> bench             : sit them out (same as sitPlayer)
 //   team slot  -> empty slot        : just relocate (same or different team)
 //   team slot  -> occupied slot     : swap the two players in place
-//   dropped on self                 : no-op
+//   tapped self again                : no-op (cancels the selection in the UI)
 //
-// "Can't drop onto a full team" needs no special-case code here: a full
-// team simply has no empty slot for the UI to render as a drop target.
+// "Can't move onto a full team" needs no special-case code here: a full
+// team simply has no empty slot for the UI to render as a tap target.
 
 function relocateWithinTeams(state: GameState, playerId: string, toTeamId: string, toSlotIndex: number): GameState {
   const player = state.players.find((p) => p.id === playerId)!;

@@ -1,30 +1,34 @@
-import { useState } from 'react';
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useGameDispatch, useGameState } from '../state/context';
 import { getActiveCourts, getPlayer } from '../state/gameLogic';
-import { resolveDropAction } from '../dragDrop';
+import type { DropTarget } from '../types';
 import { GameControls } from './GameControls';
 import { FairnessNotice } from './FairnessNotice';
 import { GrowthNotice } from './GrowthNotice';
 import { CourtView } from './CourtView';
 import { BenchList } from './BenchList';
-import { PlayerCard } from './PlayerCard';
+import { TileSelectionProvider } from './TileSelection';
+
+const SHAKE_DURATION_MS = 400;
+const SLIDE_DURATION_MS = 220;
 
 export function RotationBoard() {
   const state = useGameState();
   const dispatch = useGameDispatch();
   const activeCourts = getActiveCourts(state);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Tap-to-select-then-tap-target player movement (replaces drag-and-drop -
+  // see TileSelection.tsx and PlayerCard.tsx). selectedPlayerId is the
+  // highlighted "source" card; shakingPlayerId briefly overlaps it with an
+  // animate-tile-shake class when a tap lands somewhere that isn't a valid
+  // target or the same card again, before the selection actually clears.
+  const [rawSelectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [shakingPlayerId, setShakingPlayerId] = useState<string | null>(null);
+  // DOM nodes for every currently-rendered PlayerCard, keyed by player id -
+  // populated by PlayerCard itself via registerCardRef. Used only to
+  // measure before/after positions for the slide (FLIP) animation on a move
+  // or swap; not used for anything data-related.
+  const cardRefs = useRef(new Map<string, HTMLElement>());
+  const flipPending = useRef<{ ids: string[]; rects: Map<string, DOMRect> } | null>(null);
   // Pending winner picks for the round in progress: courtId -> teamId. Local
   // (not dispatched) until Submit - lets you tap around and change your mind
   // before it counts.
@@ -36,24 +40,86 @@ export function RotationBoard() {
   // untouched instead of wiping every pick made so far.
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // TouchSensor's activation delay stops a drag from starting on what's
-  // actually a page-scroll gesture on phones (this tool is meant to be used
-  // courtside). KeyboardSensor gives arrow-key/Enter drag-and-drop as a
-  // keyboard-accessible fallback.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
-    useSensor(KeyboardSensor),
-  );
+  // A selected player can be made stale by something other than a tile tap
+  // (e.g. removed from the roster elsewhere while highlighted) - derive a
+  // validated id instead of holding the raw state directly, so nothing
+  // downstream (highlight ring, click handler) has to special-case a
+  // selection pointing at a player who no longer exists.
+  const selectedPlayerId = rawSelectedPlayerId && getPlayer(state, rawSelectedPlayerId) ? rawSelectedPlayerId : null;
 
-  function handleDragStart(event: DragStartEvent) {
-    setDraggingId(String(event.active.id));
+  function registerCardRef(playerId: string, el: HTMLElement | null) {
+    if (el) cardRefs.current.set(playerId, el);
+    else cardRefs.current.delete(playerId);
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    setDraggingId(null);
-    const target = resolveDropAction(event.active, event.over);
-    if (target) dispatch({ type: 'MOVE_PLAYER', playerId: String(event.active.id), target });
+  function capturePositions(ids: string[]): Map<string, DOMRect> {
+    const rects = new Map<string, DOMRect>();
+    for (const id of ids) {
+      const el = cardRefs.current.get(id);
+      if (el) rects.set(id, el.getBoundingClientRect());
+    }
+    return rects;
+  }
+
+  // Classic FLIP: positions were captured just before the state-changing
+  // dispatch (while cards were still in their old spot); this runs after
+  // React has re-rendered them into their new spot, so we can measure the
+  // delta and animate it away instead of just popping there.
+  useLayoutEffect(() => {
+    const pending = flipPending.current;
+    if (!pending) return;
+    flipPending.current = null;
+    for (const id of pending.ids) {
+      const el = cardRefs.current.get(id);
+      const before = pending.rects.get(id);
+      if (!el || !before) continue;
+      const after = el.getBoundingClientRect();
+      const dx = before.left - after.left;
+      const dy = before.top - after.top;
+      if (!dx && !dy) continue;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      // Force a reflow so the browser registers the starting transform
+      // before the next two lines change it - otherwise both writes get
+      // batched together and no animation plays.
+      el.getBoundingClientRect();
+      el.style.transition = `transform ${SLIDE_DURATION_MS}ms ease`;
+      el.style.transform = '';
+      const clearInlineStyles = () => {
+        el.style.transition = '';
+        el.style.transform = '';
+        el.removeEventListener('transitionend', clearInlineStyles);
+      };
+      el.addEventListener('transitionend', clearInlineStyles);
+    }
+  });
+
+  function handleTileClick(clickedPlayerId: string | null, target: DropTarget) {
+    if (clickedPlayerId && clickedPlayerId === selectedPlayerId) {
+      setSelectedPlayerId(null); // tap the same tile again to cancel - deliberate, no shake
+      return;
+    }
+    if (!selectedPlayerId) {
+      if (clickedPlayerId) setSelectedPlayerId(clickedPlayerId);
+      return; // tapping an empty slot/bench with nothing selected does nothing
+    }
+    const animateIds = clickedPlayerId ? [selectedPlayerId, clickedPlayerId] : [selectedPlayerId];
+    flipPending.current = { ids: animateIds, rects: capturePositions(animateIds) };
+    dispatch({ type: 'MOVE_PLAYER', playerId: selectedPlayerId, target });
+    setSelectedPlayerId(null);
+  }
+
+  // Any click that isn't handled (and stopped) by a PlayerCard/empty-slot/
+  // bench tap bubbles up here - i.e. the game manager tapped away from
+  // whatever was selected. Shake the selected card briefly, then clear it.
+  function handleBackgroundClick() {
+    if (!selectedPlayerId) return;
+    const id = selectedPlayerId;
+    setShakingPlayerId(id);
+    window.setTimeout(() => {
+      setSelectedPlayerId((current) => (current === id ? null : current));
+      setShakingPlayerId((current) => (current === id ? null : current));
+    }, SHAKE_DURATION_MS);
   }
 
   function selectWinner(courtId: string, teamId: string) {
@@ -83,7 +149,6 @@ export function RotationBoard() {
     setSubmitError(null);
   }
 
-  const draggingPlayer = draggingId ? getPlayer(state, draggingId) : undefined;
   // Winner-picking only makes sense once teams are actually assigned right
   // now - `round > 0` alone is wrong here too: Clear Teams can wipe every
   // team without resetting the round counter, which would otherwise leave
@@ -98,13 +163,21 @@ export function RotationBoard() {
   const isMultiCourt = activeCourts.length > 1;
 
   return (
-    <section className="mx-auto w-full max-w-4xl p-4 lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl">
+    <section
+      className="mx-auto w-full max-w-4xl p-4 lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl"
+      // Catch-all for "tapped away from the selected player" - every tile
+      // that actually handles a tap (PlayerCard, an empty TeamSlot, the
+      // bench area) stops propagation, so this only fires for genuinely
+      // unhandled taps (GameControls, notices, a winner-pick button, empty
+      // margin, etc).
+      onClick={handleBackgroundClick}
+    >
       <div className="mb-4">
         <GameControls />
       </div>
       <GrowthNotice />
       <FairnessNotice />
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <TileSelectionProvider value={{ selectedPlayerId, shakingPlayerId, onTileClick: handleTileClick, registerCardRef }}>
         {/* Single-court view stays capped well below the outer section's
             width even on a big screen (a lone court stretched full-width
             reads worse than a lone court sized like the multi-court case) -
@@ -148,8 +221,7 @@ export function RotationBoard() {
             <BenchList />
           </div>
         </div>
-        <DragOverlay>{draggingPlayer ? <PlayerCard player={draggingPlayer} /> : null}</DragOverlay>
-      </DndContext>
+      </TileSelectionProvider>
     </section>
   );
 }
