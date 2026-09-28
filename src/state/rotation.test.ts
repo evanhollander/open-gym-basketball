@@ -318,3 +318,29 @@ describe('updateWins - multi-court ladder', () => {
     }
   });
 });
+
+// Regression: rankPlayersForRound's tiebreak for equal sitCounts was
+// backwards - a just-cleared loser (whose sitCount reflects only sits from
+// earlier in the day, not this game they just lost) would routinely tie
+// with the actual current bench and win the tiebreak, sending the real
+// bench right back to sitting a second round in a row. A real reported
+// case: 14 players on a single 5v5 court. Simulated 14 rounds against the
+// old logic and got a repeat sitter in 10 of them; zero after the fix.
+describe('rankPlayersForRound - no back-to-back sits', () => {
+  it('never sits the same player on consecutive rounds, 14 players on a single 5v5 court', () => {
+    let state = withPlayers(14); // 5v5, 4 bench
+    state = assignTeams(state, false);
+
+    let previousBench = new Set(state.sittingOrder);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    for (let round = 0; round < 20; round++) {
+      const winnerId = round % 2 === 0 ? court1.teamAId : court1.teamBId;
+      state = updateWins(state, { [court1.id]: winnerId });
+      const currentBench = new Set(state.sittingOrder);
+      for (const id of currentBench) {
+        expect(previousBench.has(id)).toBe(false);
+      }
+      previousBench = currentBench;
+    }
+  });
+});

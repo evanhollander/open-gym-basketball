@@ -385,15 +385,26 @@ export function fisherYatesShuffle<T>(items: T[], rng: () => number = Math.rando
 
 /**
  * Orders `players` from most- to least-due to play: highest sitCount first
- * (most rounds sat out plays next); within a sitCount tie, whoever did
- * *not* sit last round (see lastSatPlayerIds) beats whoever did, so the
- * same person isn't benched two rounds running purely by chance; within
- * *that* tie, on the very first game of the day (round 0, so everyone's
- * tied at sitCount 0 and nobody's sat "last round" at all) whoever joined
- * the roster earliest wins - late arrivals don't get priority over people
- * who showed up on time. Any remaining genuine tie (every other round, or
- * a coincidental all-zero tie later in the day) is broken randomly, so a
- * group that's equally due doesn't always resolve the same way twice.
+ * (most rounds sat out plays next); within a sitCount tie, whoever *did*
+ * sit last round (see lastSatPlayerIds) beats whoever didn't, so the same
+ * person isn't benched two rounds running purely by chance. This matters
+ * most exactly at the boundary between the current bench and whoever just
+ * got cleared off a losing team: both groups can easily tie on sitCount
+ * (a just-cleared loser's sitCount reflects sits from earlier in the day,
+ * before this game - it doesn't yet know it just lost), and it's the
+ * literal current bench that's at risk of a repeat sit, not the just-cleared
+ * side. This was previously backwards - "didn't sit last round" ranked
+ * first - which meant a just-cleared loser tied on sitCount would
+ * routinely leapfrog the actual bench back onto a team, and the real
+ * current bench sat again right after they'd just sat: a real reported
+ * case, 14 players on a single 5v5 court, had a repeat sitter in 10 of 14
+ * simulated rounds before this fix, zero after. Within *that* tie, on the
+ * very first game of the day (round 0, so everyone's tied at sitCount 0
+ * and nobody's sat "last round" at all) whoever joined the roster earliest
+ * wins - late arrivals don't get priority over people who showed up on
+ * time. Any remaining genuine tie (every other round, or a coincidental
+ * all-zero tie later in the day) is broken randomly, so a group that's
+ * equally due doesn't always resolve the same way twice.
  */
 function rankPlayersForRound(state: GameState, players: Player[], rng: () => number = Math.random): Player[] {
   const rosterIndex = new Map(state.players.map((p, i) => [p.id, i]));
@@ -413,9 +424,9 @@ function rankPlayersForRound(state: GameState, players: Player[], rng: () => num
 
   return descendingSitCounts.flatMap((count) => {
     const group = bySitCount.get(count)!;
-    const notLastSat = group.filter((p) => !state.lastSatPlayerIds.includes(p.id));
     const didLastSat = group.filter((p) => state.lastSatPlayerIds.includes(p.id));
-    return [...orderSubgroup(notLastSat, count), ...orderSubgroup(didLastSat, count)];
+    const notLastSat = group.filter((p) => !state.lastSatPlayerIds.includes(p.id));
+    return [...orderSubgroup(didLastSat, count), ...orderSubgroup(notLastSat, count)];
   });
 }
 

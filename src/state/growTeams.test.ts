@@ -58,19 +58,45 @@ describe('growTeams', () => {
     }
   });
 
-  it('places brand-new mid-round joiners onto a court when they rank well enough', () => {
-    let state = withPlayers(15);
+  it('places a brand-new mid-round joiner onto a court when there is enough spare capacity for everyone waiting', () => {
+    let state = withPlayers(15); // 4v4 + 3v3, 1 already-benched player
     state = assignTeams(state, false);
-    state = addPlayer(state, 'New1');
-    state = addPlayer(state, 'New2');
-    const newIds = state.players.filter((p) => p.name.startsWith('New')).map((p) => p.id);
+    state = addPlayer(state, 'New1'); // 16 players - still 4v4/4v4, 2 open slots for 2 candidates
 
+    const newId = state.players.find((p) => p.name === 'New1')!.id;
     const after = growTeams(state);
     const onCourtAfter = new Set(Object.values(after.teams).flatMap((t) => t.slots.filter((s): s is string => s !== null)));
-    for (const id of newIds) {
-      expect(onCourtAfter.has(id)).toBe(true);
-      expect(after.players.find((p) => p.id === id)!.status).toBe('team');
-    }
+    expect(onCourtAfter.has(newId)).toBe(true);
+    expect(after.players.find((p) => p.id === newId)!.status).toBe('team');
+  });
+
+  // Regression: the tiebreak this depends on (rankPlayersForRound's
+  // didLastSat-before-notLastSat ordering) used to be backwards, which let
+  // a brand-new joiner - who, having never sat at all, is always
+  // "notLastSat" - leapfrog the player who's actually next in line on the
+  // bench whenever their sitCounts happened to tie. That directly
+  // contradicted addPlayer's own stated intent ("so they don't unfairly
+  // jump straight onto a team ahead of people who've actually been
+  // waiting").
+  it('does not let a brand-new joiner skip ahead of the player actually next in line, when only one seat is open', () => {
+    let state = withPlayers(15); // 4v4 + 3v3, 1 already-benched player at sitCount 1
+    state = assignTeams(state, false);
+    const alreadyWaiting = state.players.find((p) => p.status === 'sitting')!;
+    expect(alreadyWaiting.sitCount).toBe(1);
+
+    state = addPlayer(state, 'New1');
+    state = addPlayer(state, 'New2'); // 17 players - 4v4/4v4, 2 open slots for 3 candidates
+
+    const after = growTeams(state);
+    // The player who was already waiting always gets one of the 2 seats -
+    // only the second seat is a genuine (random) contest between the two
+    // brand-new joiners, both tied at sitCount 1 with each other.
+    expect(after.players.find((p) => p.id === alreadyWaiting.id)!.status).toBe('team');
+    const newIds = state.players.filter((p) => p.name.startsWith('New')).map((p) => p.id);
+    const newOnCourtCount = newIds.filter(
+      (id) => after.players.find((p) => p.id === id)!.status === 'team',
+    ).length;
+    expect(newOnCourtCount).toBe(1);
   });
 
   it('keeps every player accounted for exactly once (on a court or the bench), no phantom players', () => {
