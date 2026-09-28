@@ -15,6 +15,7 @@ import { getActiveCourts, getPlayer } from '../state/gameLogic';
 import { resolveDropAction } from '../dragDrop';
 import { GameControls } from './GameControls';
 import { FairnessNotice } from './FairnessNotice';
+import { GrowthNotice } from './GrowthNotice';
 import { CourtView } from './CourtView';
 import { BenchList } from './BenchList';
 import { PlayerCard } from './PlayerCard';
@@ -101,6 +102,7 @@ export function RotationBoard() {
       <div className="mb-4">
         <GameControls />
       </div>
+      <GrowthNotice />
       <FairnessNotice />
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         {/* Single-court view stays capped well below the outer section's

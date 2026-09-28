@@ -9,6 +9,16 @@ describe('addPlayer', () => {
     expect(state.players[0]).toMatchObject({ name: 'Alex', status: 'none', sitCount: 0 });
   });
 
+  // Regression: a player added mid-round wasn't added to sittingOrder,
+  // which is what BenchList actually renders from (not player.status) -
+  // they were listed in the full Roster tab but invisible on the Bench
+  // until the next Assign Teams or Submit Winners rebuilt sittingOrder
+  // from scratch.
+  it('adds the new player to sittingOrder so they show up on the Bench immediately', () => {
+    const state = addPlayer(createInitialState(), 'Alex');
+    expect(state.sittingOrder).toEqual([state.players[0].id]);
+  });
+
   it('rejects names under 2 characters', () => {
     expect(() => addPlayer(createInitialState(), 'A')).toThrow(/at least 2 characters/i);
   });

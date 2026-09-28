@@ -32,6 +32,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return { ...gameLogic.assignTeams(state, !!action.keepTeams), lastNotice: null };
       case 'RESHUFFLE_TEAMS':
         return { ...gameLogic.reshuffleTeams(state), lastNotice: null };
+      case 'GROW_TEAMS':
+        return { ...gameLogic.growTeams(state), lastNotice: null };
       case 'SUBMIT_WINNERS':
         // updateWins sets lastNotice itself (non-null only when the
         // win-streak cap just forced a team apart) - don't clear it here.

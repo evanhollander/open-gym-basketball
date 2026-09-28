@@ -55,7 +55,14 @@ export function addPlayer(state: GameState, rawName: string): GameState {
     statusRound: state.round,
   };
 
-  return { ...state, players: [...state.players, newPlayer] };
+  // A new player always starts on the bench, never on a team - matches
+  // sitPlayer()/truncateOversizedTeams's convention that anyone 'sitting'
+  // must also be in sittingOrder, since that's what BenchList actually
+  // renders from, not player.status. Skipping this left a player added
+  // mid-round invisible on the Bench (though still listed in the full
+  // Roster) until the next Assign Teams or Submit Winners rebuilt
+  // sittingOrder from scratch - a real reported gap.
+  return { ...state, players: [...state.players, newPlayer], sittingOrder: [...state.sittingOrder, newPlayer.id] };
 }
 
 /**
@@ -328,6 +335,39 @@ export function courtShrinkWarning(state: GameState): { from: number; to: number
   return newActive < currentActive ? { from: currentActive, to: newActive } : null;
 }
 
+/**
+ * Live, mid-round counterpart to courtShrinkWarning, for the opposite
+ * direction: has the roster grown enough since teams were last assigned
+ * that today's distribution could now run more simultaneous players?
+ * Compares total on-court *capacity* (sizePerTeam * 2, summed over active
+ * courts), not active court *count* - unlike a shrink that drops a court
+ * off entirely, a common growth case (e.g. 15 -> 17 players) upgrades an
+ * existing court's team size (3v3 -> 4v4) without changing how many courts
+ * are active at all, so counting courts the way courtShrinkWarning does
+ * would miss it. Only meaningful mid-round: courtShrinkWarning's
+ * window.confirm gate on Assign/Reshuffle already covers the pre-round case
+ * (and the shrink direction generally), so this returns null whenever no
+ * round is in progress. Polled every render by GrowthNotice.tsx, same
+ * purely-reactive pattern as findUnfairSecondSit - no stored "dismissed"
+ * state, since calling growTeams (or the roster shrinking back down) makes
+ * it stop firing on its own.
+ */
+export function courtGrowthAvailable(state: GameState): { currentCapacity: number; newCapacity: number } | null {
+  if (!state.players.some((p) => p.status === 'team')) return null;
+
+  const currentCapacity = getActiveCourts(state).reduce((sum, c) => sum + c.sizePerTeam * 2, 0);
+  const sizes = distributePlayers(
+    state.numCourts,
+    state.players.length,
+    state.gameType,
+    state.maxTeamSize,
+    state.maxSingleCourtPlayers,
+  );
+  const newCapacity = (sizes.court1 + sizes.court2 + sizes.court3 + sizes.court4) * 2;
+
+  return newCapacity > currentCapacity ? { currentCapacity, newCapacity } : null;
+}
+
 // ---- 3. Fairness ranking ----
 // Who plays next is decided by one global ranking, not a tiered fallback
 // cascade: every player not already deterministically placed by the
@@ -482,10 +522,18 @@ function placePlayerOnTeam(state: GameState, playerId: string, teamId: string, s
 
 /** Fills every currently-empty team slot on every active court from
  * `candidates`, in fixed court/team order, each candidate placed in the
- * first open slot found. Never touches an already-occupied slot - that's
- * how continuity works: this only ever sees genuinely open seats, whether
- * they were empty to begin with or just vacated by resolveOpenSlots. */
-function fillOpenSlots(state: GameState, candidates: Player[]): GameState {
+ * first open slot found via `place`. Never touches an already-occupied slot
+ * - that's how continuity works: this only ever sees genuinely open seats,
+ * whether they were empty to begin with or just vacated by resolveOpenSlots.
+ * `place` is a parameter (rather than always placePlayerOnTeam) so growTeams
+ * can reuse the same slot-walking logic but with placeFromBench's sit-count
+ * refund bookkeeping instead - see growTeams for why that distinction
+ * matters mid-round. */
+function fillOpenSlotsWith(
+  state: GameState,
+  candidates: Player[],
+  place: (state: GameState, playerId: string, teamId: string, slotIndex: number) => GameState,
+): GameState {
   let next = state;
   let cursor = 0;
   outer: for (const { teamId, courtIndex } of TEAM_COURT_ORDER) {
@@ -496,10 +544,14 @@ function fillOpenSlots(state: GameState, candidates: Player[]): GameState {
       const candidate = candidates[cursor];
       if (!candidate) break outer; // nobody left to place; leave remaining slots open
       cursor++;
-      next = placePlayerOnTeam(next, candidate.id, teamId, slotIndex);
+      next = place(next, candidate.id, teamId, slotIndex);
     }
   }
   return next;
+}
+
+function fillOpenSlots(state: GameState, candidates: Player[]): GameState {
+  return fillOpenSlotsWith(state, candidates, placePlayerOnTeam);
 }
 
 /**
@@ -599,6 +651,43 @@ export function assignTeams(state: GameState, keepTeams: boolean): GameState {
  * advancing the round. Mirrors the original's reshuffleTeams(). */
 export function reshuffleTeams(state: GameState): GameState {
   return assignTeams(state, true);
+}
+
+/**
+ * Mid-round counterpart to Assign Teams, for when courtGrowthAvailable
+ * fires: the roster has grown enough that today's distribution can now run
+ * more simultaneous players. Recomputes court sizing, leaves every
+ * currently-playing player exactly where they are (never reconsiders them,
+ * unlike updateWins), and fills only the genuinely new slots that growth
+ * just opened up - ranked fairly against the whole bench, same as anywhere
+ * else, so a player added mid-round competes for a new seat on equal
+ * footing with someone who's actually been waiting.
+ *
+ * Neither Assign Teams nor Reshuffle Teams can safely be the one mid-round
+ * fix for this: Assign Teams unconditionally advances the round and bumps
+ * every bench player's sit count, which shouldn't happen just because more
+ * players joined - the current round hasn't ended. Reshuffle Teams
+ * recomputes sizing correctly but only ever re-scrambles players already
+ * marked 'team' ("no bench, no ranking" - see assignTeams) - it has no
+ * mechanism to pull anyone in from the bench at all, so newly-opened slots
+ * from growth would simply stay empty forever.
+ *
+ * Each entering player goes through placeFromBench, not fillOpenSlots's
+ * plain placePlayerOnTeam - not resolveRound's usual bulk sit-count bump,
+ * since that would double-count anyone who was already sitting out this
+ * same round before growth opened a seat for them. placeFromBench's
+ * same-round refund logic (see its own comment) already handles exactly
+ * that case correctly, on a per-player basis.
+ */
+export function growTeams(state: GameState): GameState {
+  const next = truncateOversizedTeams(applyDistribution(state));
+  const capacity = getActiveCourts(next).reduce((sum, c) => sum + c.sizePerTeam * 2, 0);
+  const openSlotCount = capacity - next.players.filter((p) => p.status === 'team').length;
+  if (openSlotCount <= 0) return { ...next, lastError: null };
+
+  const benchPool = next.players.filter((p) => p.status !== 'team');
+  const entering = rankPlayersForRound(next, benchPool).slice(0, openSlotCount);
+  return { ...fillOpenSlotsWith(next, entering, placeFromBench), lastError: null };
 }
 
 // ---- 5. Winner-stays rotation ----

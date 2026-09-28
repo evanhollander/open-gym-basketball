@@ -142,6 +142,7 @@ export type Action =
   | { type: 'SET_THEME'; theme: Theme }
   | { type: 'ASSIGN_TEAMS'; keepTeams?: boolean }
   | { type: 'RESHUFFLE_TEAMS' }
+  | { type: 'GROW_TEAMS' }
   | { type: 'SUBMIT_WINNERS'; winners: Record<string, string> } // courtId -> winning teamId
   | { type: 'MOVE_PLAYER'; playerId: string; target: DropTarget }
   | { type: 'SWAP_PLAYERS'; playerAId: string; playerBId: string }
