@@ -29,7 +29,15 @@ export function loadState(): GameState | null {
     // count. Spreading onto today's defaults backfills any field a saved
     // blob predates, while every field the save actually has (including an
     // empty players array) still wins since it comes second.
-    return { ...createInitialState(), ...saved };
+    //
+    // That top-level spread does NOT reach inside each element of the
+    // players array, though - a save from before Player.wins existed parses
+    // back with individual player objects simply missing that key, which
+    // would make `p.wins + 1` in updateWins silently produce NaN forever
+    // for a returning user's whole roster. Each player needs its own
+    // default-then-override backfill for the same reason.
+    const players = (saved.players ?? []).map((p) => ({ ...p, wins: p.wins ?? 0 }));
+    return { ...createInitialState(), ...saved, players };
   } catch {
     return null;
   }

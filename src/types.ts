@@ -34,6 +34,13 @@ export interface Player {
    * onto a team within the same round they were just benched in (see
    * movePlayer's same-round guard, section 6). */
   statusRound: number;
+  /** How many times this player has been on a court's winning team,
+   * all-time. Not shown anywhere in the normal UI - it only surfaces in the
+   * "beta" leaderboard at the bottom of the Courts page (see
+   * WinsBetaPanel.tsx). Incremented in updateWins (gameLogic.ts section 5)
+   * for everyone on a winning team, regardless of what the promotion ladder
+   * does to their team assignment afterward. */
+  wins: number;
 }
 
 export type TeamSide = 'white' | 'dark';

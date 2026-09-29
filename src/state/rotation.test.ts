@@ -108,6 +108,55 @@ describe('updateWins', () => {
   });
 });
 
+describe('updateWins - per-player win counts', () => {
+  it('increments wins for everyone on the winning team and leaves the losing team at 0', () => {
+    const state = assignTeams(withPlayers(10), false);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    const winnerIdsBefore = state.teams[court1.teamAId].slots.filter((s): s is string => s !== null);
+    const loserIdsBefore = state.teams[court1.teamBId].slots.filter((s): s is string => s !== null);
+
+    const after = updateWins(state, { [court1.id]: court1.teamAId });
+
+    for (const id of winnerIdsBefore) {
+      expect(after.players.find((p) => p.id === id)!.wins).toBe(1);
+    }
+    for (const id of loserIdsBefore) {
+      expect(after.players.find((p) => p.id === id)!.wins).toBe(0);
+    }
+  });
+
+  it('keeps crediting the same players across a win streak, and never double-counts a single win', () => {
+    let state = assignTeams(withPlayers(10), false);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    const winnerIdsBefore = state.teams[court1.teamAId].slots.filter((s): s is string => s !== null);
+
+    state = updateWins(state, { [court1.id]: court1.teamAId });
+    state = updateWins(state, { [court1.id]: court1.teamAId });
+
+    for (const id of winnerIdsBefore) {
+      expect(state.players.find((p) => p.id === id)!.wins).toBe(2);
+    }
+  });
+
+  // Regression guard: wins must be credited against who was actually on the
+  // winning team at the moment the round ended - not against wherever the
+  // promotion ladder or streak-cap reshuffle relocates them a few lines
+  // later in the same updateWins call.
+  it('credits a win even when the streak cap simultaneously breaks up that same team', () => {
+    let state = assignTeams(withPlayers(10), false);
+    const court1 = state.courts.find((c) => c.index === 1)!;
+    state = { ...state, maxConsecutiveWins: 1 };
+    const winnerIdsBefore = state.teams[court1.teamAId].slots.filter((s): s is string => s !== null);
+
+    const after = updateWins(state, { [court1.id]: court1.teamAId });
+
+    expect(after.court1WinStreak).toBe(0); // cap hit and reset on this very win
+    for (const id of winnerIdsBefore) {
+      expect(after.players.find((p) => p.id === id)!.wins).toBe(1);
+    }
+  });
+});
+
 describe('sitPlayer', () => {
   it('benches a player who is on a team, incrementing their sit count', () => {
     const state = assignTeams(withPlayers(10), false);

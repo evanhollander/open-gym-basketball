@@ -63,6 +63,23 @@ describe('loadState', () => {
     expect(loaded?.theme).toBe('system');
   });
 
+  it('backfills wins: 0 on each individual player from an older save, not just top-level fields', () => {
+    // Regression: the top-level `{ ...createInitialState(), ...saved }`
+    // spread only backfills missing GameState keys - it can't reach inside
+    // each element of the players array, so a save from before Player.wins
+    // existed parses back with every player object simply missing that key.
+    // Left unhandled, `p.wins + 1` in updateWins would silently produce NaN
+    // for a returning user's entire roster.
+    const oldSave = createInitialState() as unknown as Record<string, unknown>;
+    oldSave.players = [
+      { id: 'p1', name: 'Alex', status: 'none', teamId: null, sitCount: 0, statusRound: 0 },
+    ];
+    localStorage.setItem('open-gym:v1', JSON.stringify(oldSave));
+
+    const loaded = loadState();
+    expect(loaded?.players[0].wins).toBe(0);
+  });
+
   it('still preserves an explicitly saved value, including falsy-looking ones', () => {
     const state = { ...createInitialState(), round: 0, maxTeamSize: null };
     saveState(state);

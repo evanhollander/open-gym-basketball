@@ -53,6 +53,7 @@ export function addPlayer(state: GameState, rawName: string): GameState {
     // `sit = rounds > 0 ? 1 : 0`.
     sitCount: state.round > 0 ? 1 : 0,
     statusRound: state.round,
+    wins: 0,
   };
 
   // A new player always starts on the bench, never on a team - matches
@@ -744,6 +745,20 @@ export function updateWins(state: GameState, winners: Record<string, string>): G
   }
 
   let next = state;
+
+  // ---- Track cumulative wins per player (hidden field, see Player.wins) ----
+  // Recorded against exactly who was on each winning team right now, before
+  // the streak cap or promotion ladder below can move anyone - a player's
+  // win count shouldn't depend on where the algorithm relocates them
+  // afterward.
+  for (const court of activeCourts) {
+    const winnerId = winners[court.id];
+    const winningPlayerIds = new Set(next.teams[winnerId].slots.filter((id): id is string => id !== null));
+    next = {
+      ...next,
+      players: next.players.map((p) => (winningPlayerIds.has(p.id) ? { ...p, wins: p.wins + 1 } : p)),
+    };
+  }
 
   // ---- Court 1 win-streak cap ----
   const court1 = activeCourts.find((c) => c.index === 1)!;

@@ -8,6 +8,7 @@ import { GrowthNotice } from './GrowthNotice';
 import { CourtView } from './CourtView';
 import { BenchList } from './BenchList';
 import { TileSelectionProvider } from './TileSelection';
+import { WinsBetaPanel } from './WinsBetaPanel';
 
 const SHAKE_DURATION_MS = 400;
 const SLIDE_DURATION_MS = 220;
@@ -222,6 +223,7 @@ export function RotationBoard() {
           </div>
         </div>
       </TileSelectionProvider>
+      <WinsBetaPanel />
     </section>
   );
 }
