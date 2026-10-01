@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState } from './initialState';
-import { addPlayer, isRiskyStreakSetup, findUnfairSecondSit } from './gameLogic';
+import { addPlayer, isRiskyStreakSetup, findLopsidedSitGap } from './gameLogic';
 import type { GameState } from '../types';
 
 function withPlayers(count: number, state: GameState = { ...createInitialState(), numCourts: 1 }): GameState {
@@ -33,10 +33,10 @@ describe('isRiskyStreakSetup', () => {
   });
 });
 
-describe('findUnfairSecondSit', () => {
+describe('findLopsidedSitGap', () => {
   it('returns null when nobody is currently on a team', () => {
     const state = withPlayers(13);
-    expect(findUnfairSecondSit(state)).toBeNull();
+    expect(findLopsidedSitGap(state)).toBeNull();
   });
 
   it('flags a bench player with 2+ sits while a Court 1 win-streak holder has a never-sat player', () => {
@@ -62,10 +62,10 @@ describe('findUnfairSecondSit', () => {
       }),
     };
 
-    const result = findUnfairSecondSit(state);
+    const result = findLopsidedSitGap(state);
     expect(result).not.toBeNull();
-    expect(result?.repeatSitterId).toBe(repeatSitter.id);
-    expect([p1.id, p2.id, p3.id, p4.id, p5.id]).toContain(result?.neverSatPlayerId);
+    expect(result?.overSatPlayerId).toBe(repeatSitter.id);
+    expect([p1.id, p2.id, p3.id, p4.id, p5.id]).toContain(result?.underSatPlayerId);
   });
 
   it('also flags a team that cascaded up through Courts 4->3->2 without a Court 1 win streak', () => {
@@ -96,13 +96,13 @@ describe('findUnfairSecondSit', () => {
       }),
     };
 
-    const result = findUnfairSecondSit(state);
+    const result = findLopsidedSitGap(state);
     expect(result).not.toBeNull();
-    expect(result?.repeatSitterId).toBe(repeatSitter.id);
-    expect([p1.id, p2.id]).toContain(result?.neverSatPlayerId);
+    expect(result?.overSatPlayerId).toBe(repeatSitter.id);
+    expect([p1.id, p2.id]).toContain(result?.underSatPlayerId);
   });
 
-  it('returns null once every currently-playing player has sat at least once', () => {
+  it('returns null when the gap is only 1 round, even with a bench player at 2+ sits', () => {
     let state = withPlayers(13);
     const [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, bench1, bench2, repeatSitter] = state.players;
     const winningTeamId = 'team-1';
@@ -125,6 +125,31 @@ describe('findUnfairSecondSit', () => {
       }),
     };
 
-    expect(findUnfairSecondSit(state)).toBeNull();
+    expect(findLopsidedSitGap(state)).toBeNull();
+  });
+
+  // Regression: a real reported session (13 players, 1 court, default cap
+  // of 3) hit a 2-round gap - bench at sitCount 5, the least-sat playing
+  // player at sitCount 3 - without either side ever touching 0 or 2 exactly.
+  // The old absolute "bench >= 2 AND some playing player === 0" rule would
+  // have missed this entirely; the relative gap rule catches it regardless
+  // of where on the sitCount scale it happens.
+  it('flags a 2-round gap even when neither side is at sitCount 0 or 2', () => {
+    let state = withPlayers(13);
+    const [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, bench1, bench2, overSat] = state.players;
+    state = {
+      ...state,
+      sittingOrder: [bench1.id, bench2.id, overSat.id],
+      players: state.players.map((p) => {
+        if ([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10].some((w) => w.id === p.id)) {
+          return { ...p, status: 'team', sitCount: 3 };
+        }
+        if (p.id === overSat.id) return { ...p, status: 'sitting', sitCount: 5 };
+        return { ...p, status: 'sitting', sitCount: 3 };
+      }),
+    };
+
+    const result = findLopsidedSitGap(state);
+    expect(result).toEqual({ overSatPlayerId: overSat.id, underSatPlayerId: p1.id });
   });
 });

@@ -349,7 +349,7 @@ export function courtShrinkWarning(state: GameState): { from: number; to: number
  * window.confirm gate on Assign/Reshuffle already covers the pre-round case
  * (and the shrink direction generally), so this returns null whenever no
  * round is in progress. Polled every render by GrowthNotice.tsx, same
- * purely-reactive pattern as findUnfairSecondSit - no stored "dismissed"
+ * purely-reactive pattern as findLopsidedSitGap - no stored "dismissed"
  * state, since calling growTeams (or the roster shrinking back down) makes
  * it stop firing on its own.
  */
@@ -1092,27 +1092,48 @@ export function getTeam(state: GameState, teamId: string): Team | undefined {
 
 /**
  * The live version of the isRiskyStreakSetup guardrail: has a fairness gap
- * actually happened just now? True when someone on the bench has sat 2+
- * times while some currently-playing player, on ANY active court, hasn't
- * sat even once. Deliberately not limited to Court 1's win-streak holder -
- * the same gap shows up whenever a player is effectively "protected" from
- * ever being reconsidered: a team promoted all the way up the ladder
- * without ever losing (no streak cap applies until it reaches Court 1), or
- * after a manual drag-and-drop keeps someone on a team round after round.
- * Returns the specific pair a swap would fix (see the Auto-balance notice
- * in RotationBoard) so the caller doesn't have to re-derive who; null when
+ * actually happened just now? True whenever the most-sat player currently on
+ * the bench has sat out more than 1 round, all-time, than the least-sat
+ * player currently playing - i.e. the sitCount spread between the bench and
+ * the court has grown wider than ordinary round-to-round noise accounts for.
+ * Deliberately not limited to Court 1's win-streak holder, and not anchored
+ * to an absolute "2+ sits" or "0 sits" threshold - the same gap shows up at
+ * any sitCount level whenever a player is effectively "protected" from ever
+ * being reconsidered: a team promoted all the way up the ladder without ever
+ * losing (no streak cap applies until it reaches Court 1), a Court 1 win
+ * streak mid-cap (the winner's sitCount freezes while the bench keeps
+ * climbing - see CLAUDE.md, this is an expected side effect of Winner Stays
+ * On itself, not a bug), or after a manual swap keeps someone on a team
+ * round after round.
+ *
+ * This used to only fire on the narrower "bench sat 2+ times while some
+ * playing player has never sat" case - a real reported session (13 players,
+ * 1 court, default cap of 3) hit a 2-round gap (bench at sitCount 5, the
+ * least-sat playing player at sitCount 3) without either side ever touching
+ * 0 or 2 exactly, so that absolute check silently missed it. The relative
+ * version here is a strict generalization: every case the old check caught
+ * (gap >= 2 with the low end pinned at 0) is still caught, plus every case
+ * with the same size gap anywhere else on the sitCount scale.
+ *
+ * Returns the specific pair a swap would fix (see the Auto-balance notice in
+ * RotationBoard) so the caller doesn't have to re-derive who; null when
  * there's nothing to flag.
  */
-export function findUnfairSecondSit(
+export function findLopsidedSitGap(
   state: GameState,
-): { repeatSitterId: string; neverSatPlayerId: string } | null {
-  const neverSatPlaying = state.players.find((p) => p.status === 'team' && p.sitCount === 0);
-  if (!neverSatPlaying) return null;
+): { overSatPlayerId: string; underSatPlayerId: string } | null {
+  const playing = state.players.filter((p) => p.status === 'team');
+  if (playing.length === 0) return null;
+  const underSatPlayer = playing.reduce((min, p) => (p.sitCount < min.sitCount ? p : min));
 
-  const repeatSitter = state.sittingOrder
+  const benchByMostSat = state.sittingOrder
     .map((id) => getPlayer(state, id))
-    .find((p): p is Player => !!p && p.sitCount >= 2);
-  if (!repeatSitter) return null;
+    .filter((p): p is Player => !!p)
+    .sort((a, b) => b.sitCount - a.sitCount);
+  const overSatPlayer = benchByMostSat[0];
+  if (!overSatPlayer) return null;
 
-  return { repeatSitterId: repeatSitter.id, neverSatPlayerId: neverSatPlaying.id };
+  if (overSatPlayer.sitCount - underSatPlayer.sitCount <= 1) return null;
+
+  return { overSatPlayerId: overSatPlayer.id, underSatPlayerId: underSatPlayer.id };
 }
