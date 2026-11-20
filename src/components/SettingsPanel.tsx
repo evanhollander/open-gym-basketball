@@ -19,16 +19,18 @@ export function SettingsPanel() {
   const dispatch = useGameDispatch();
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
+    <section className="mx-auto flex w-full max-w-md flex-col gap-4 p-4 lg:max-w-3xl">
+      <h2 className="font-display text-lg font-semibold tracking-wide text-ink-800 dark:text-plank-50">Settings</h2>
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:gap-y-5">
       <div>
-        <label htmlFor="theme" className="mb-1 block font-medium">
+        <label htmlFor="theme" className="mb-1 block font-display font-medium tracking-wide">
           Appearance
         </label>
         <select
           id="theme"
           value={state.theme}
           onChange={(e) => dispatch({ type: 'SET_THEME', theme: e.target.value as Theme })}
-          className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="w-full rounded-sm border-2 border-plank-300 bg-white px-3 py-2 dark:border-ink-600 dark:bg-ink-800"
         >
           {THEME_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -36,20 +38,20 @@ export function SettingsPanel() {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">
           "System" follows your device's light/dark setting automatically.
         </p>
       </div>
 
       <div>
-        <label htmlFor="gameType" className="mb-1 block font-medium">
+        <label htmlFor="gameType" className="mb-1 block font-display font-medium tracking-wide">
           Minimum Game
         </label>
         <select
           id="gameType"
           value={state.gameType}
           onChange={(e) => dispatch({ type: 'SET_GAME_TYPE', gameType: Number(e.target.value) as GameType })}
-          className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="w-full rounded-sm border-2 border-plank-300 bg-white px-3 py-2 dark:border-ink-600 dark:bg-ink-800"
         >
           {GAME_TYPE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -57,11 +59,11 @@ export function SettingsPanel() {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Determines the minimum game format.</p>
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">Determines the minimum game format.</p>
       </div>
 
       <div>
-        <label htmlFor="maxTeamSize" className="mb-1 block font-medium">
+        <label htmlFor="maxTeamSize" className="mb-1 block font-display font-medium tracking-wide">
           Max Team Size
         </label>
         <select
@@ -73,7 +75,7 @@ export function SettingsPanel() {
               maxTeamSize: e.target.value === 'none' ? null : (Number(e.target.value) as GameType),
             })
           }
-          className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="w-full rounded-sm border-2 border-plank-300 bg-white px-3 py-2 dark:border-ink-600 dark:bg-ink-800"
         >
           <option value="none">No cap (fit as many players as possible)</option>
           {GAME_TYPE_OPTIONS.map((o) => (
@@ -82,14 +84,14 @@ export function SettingsPanel() {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">
           Caps players-per-team so a court never grows bigger than this, even if there are enough players -
           extra players sit and rotate in instead.
         </p>
       </div>
 
       <div>
-        <label htmlFor="numCourts" className="mb-1 block font-medium">
+        <label htmlFor="numCourts" className="mb-1 block font-display font-medium tracking-wide">
           Number of Courts
         </label>
         {/* A free-text number input misbehaves on mobile: tapping doesn't
@@ -102,7 +104,7 @@ export function SettingsPanel() {
           onChange={(e) =>
             dispatch({ type: 'SET_NUM_COURTS', numCourts: Number(e.target.value) as 1 | 2 | 3 | 4 })
           }
-          className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="w-24 rounded-sm border-2 border-plank-300 bg-white px-3 py-2 dark:border-ink-600 dark:bg-ink-800"
         >
           {[1, 2, 3, 4].map((n) => (
             <option key={n} value={n}>
@@ -110,18 +112,18 @@ export function SettingsPanel() {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Supports up to 4 courts.</p>
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">Supports up to 4 courts.</p>
       </div>
 
       <div>
-        <label htmlFor="maxSingleCourtPlayers" className="mb-1 block font-medium">
+        <label htmlFor="maxSingleCourtPlayers" className="mb-1 block font-display font-medium tracking-wide">
           Max Players on 1 Court
         </label>
         <select
           id="maxSingleCourtPlayers"
           value={state.maxSingleCourtPlayers}
           onChange={(e) => dispatch({ type: 'SET_MAX_SINGLE_COURT_PLAYERS', value: Number(e.target.value) })}
-          className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="w-24 rounded-sm border-2 border-plank-300 bg-white px-3 py-2 dark:border-ink-600 dark:bg-ink-800"
         >
           {Array.from({ length: 11 }, (_, i) => i + 3).map((n) => (
             <option key={n} value={n}>
@@ -129,7 +131,7 @@ export function SettingsPanel() {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">
           Court 2 stays off until there are more players than this - a single fuller game beats splitting
           into two smaller ones. Only takes effect once there are enough players for two games at the
           Minimum Game format above (e.g. two 3v3 courts need 12+ players).
@@ -137,14 +139,14 @@ export function SettingsPanel() {
       </div>
 
       <div>
-        <label htmlFor="maxConsecutiveWins" className="mb-1 block font-medium">
+        <label htmlFor="maxConsecutiveWins" className="mb-1 block font-display font-medium tracking-wide">
           Winner Stays On (max consecutive wins)
         </label>
         <select
           id="maxConsecutiveWins"
           value={state.maxConsecutiveWins}
           onChange={(e) => dispatch({ type: 'SET_MAX_CONSECUTIVE_WINS', value: Number(e.target.value) })}
-          className="w-24 rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          className="w-24 rounded-sm border-2 border-plank-300 bg-white px-3 py-2 dark:border-ink-600 dark:bg-ink-800"
         >
           {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
             <option key={n} value={n}>
@@ -152,13 +154,14 @@ export function SettingsPanel() {
             </option>
           ))}
         </select>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">
           Court 1's winning team is benched once it wins this many games in a row, even though it won -
           keeps one team from holding the main court all night.
         </p>
       </div>
+      </div>
 
-      <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+      <div className="mt-4 border-t-2 border-plank-300 pt-4 dark:border-ink-700">
         <button
           type="button"
           onClick={() => {
@@ -166,11 +169,11 @@ export function SettingsPanel() {
               dispatch({ type: 'RESET_ALL' });
             }
           }}
-          className="w-full rounded border border-red-300 px-4 py-2 text-red-700 active:bg-red-50 dark:border-red-800 dark:text-red-400 dark:active:bg-red-950"
+          className="w-full rounded-sm border-2 border-red-300 px-4 py-2 font-display tracking-wide text-red-700 active:bg-red-50 dark:border-red-800 dark:text-red-400 dark:active:bg-red-950"
         >
           Reset Everything
         </button>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-sm text-ink-700/70 dark:text-plank-200/70">
           Removes every player and resets rounds, sit counts, and win streaks. Settings above stay as-is.
         </p>
       </div>

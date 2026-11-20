@@ -190,7 +190,7 @@ export function RotationBoard() {
             unused space per side on a typical wide external display). */}
         <div className={'mx-auto mt-4 ' + (isMultiCourt ? 'max-w-4xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl' : 'max-w-md md:max-w-xl lg:max-w-2xl xl:max-w-3xl')}>
           {inWinnerSelectMode && (
-            <p className="mb-2 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p className="mb-2 text-center text-sm text-ink-700/70 dark:text-plank-200/70">
               Tap the winning team on each court, then Submit.
             </p>
           )}
@@ -209,7 +209,7 @@ export function RotationBoard() {
               <button
                 type="button"
                 onClick={submitWinners}
-                className="rounded bg-green-600 px-6 py-3 text-lg font-semibold text-white active:bg-green-700 sm:px-8 sm:py-4 sm:text-xl"
+                className="rounded-sm bg-green-600 px-6 py-3 font-display text-lg font-semibold tracking-wide text-white active:bg-green-700 sm:px-8 sm:py-4 sm:text-xl"
               >
                 Submit Winners / Next Game
               </button>

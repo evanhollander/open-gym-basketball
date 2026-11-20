@@ -14,12 +14,20 @@ interface TeamColumnProps {
 }
 
 // Fixed (not app-theme-dependent) colors matching real pinny/jersey colors,
-// so "White"/"Dark" is visually obvious at a glance courtside, not just a
-// text label - independent of the app's own light/dark UI theme, since
-// "Dark team" and "dark mode" are unrelated axes.
-const SIDE_STYLES = {
-  white: 'bg-white text-gray-900 ring-2 ring-gray-300 active:bg-gray-100',
-  dark: 'bg-gray-900 text-white ring-2 ring-gray-700 active:bg-gray-800',
+// so "White"/"Dark" is visually obvious at a glance across the *whole* team
+// column - like two actual dugouts - not just a small text label, and
+// independent of the app's own light/dark UI theme, since "Dark team" and
+// "dark mode" are unrelated axes. PlayerCard reads this same `side` to tint
+// its own cards so they read as part of the dugout rather than a neutral
+// app-theme card dropped on top of it (see SIDE_CARD there).
+const SIDE_CONTAINER = {
+  white: 'bg-white ring-2 ring-plank-300',
+  dark: 'bg-ink-950 ring-2 ring-ink-600',
+} as const;
+
+const SIDE_LABEL_TEXT = {
+  white: 'text-ink-900',
+  dark: 'text-plank-50',
 } as const;
 
 function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: TeamColumnProps) {
@@ -39,7 +47,7 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
     ) : null;
 
   return (
-    <div className="flex-1">
+    <div className={'flex-1 rounded-sm p-1.5 transition-colors sm:p-2 ' + SIDE_CONTAINER[team.side]}>
       {onPickWinner ? (
         // Once a round is underway, the team header doubles as the winner
         // picker - tap the team that won right where you're already looking,
@@ -49,8 +57,8 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
           onClick={onPickWinner}
           aria-pressed={isWinnerPick}
           className={
-            'mb-1 w-full rounded px-2 py-1.5 text-center text-sm font-semibold transition-colors sm:px-3 sm:py-2 sm:text-base ' +
-            (isWinnerPick ? 'bg-green-600 text-white' : SIDE_STYLES[team.side])
+            'mb-1.5 w-full rounded-sm px-2 py-1.5 text-center font-display text-sm font-medium tracking-wide transition-colors sm:px-3 sm:py-2 sm:text-base ' +
+            (isWinnerPick ? 'bg-green-600 text-white' : SIDE_LABEL_TEXT[team.side] + ' active:opacity-70')
           }
         >
           {label}
@@ -60,8 +68,8 @@ function TeamColumn({ teamId, size, isWinnerPick, onPickWinner, winStreak }: Tea
       ) : (
         <h3
           className={
-            'mb-1 rounded px-2 py-1.5 text-center text-sm font-semibold sm:px-3 sm:py-2 sm:text-base ' +
-            SIDE_STYLES[team.side]
+            'mb-1.5 px-2 py-1.5 text-center font-display text-sm font-medium tracking-wide sm:px-3 sm:py-2 sm:text-base ' +
+            SIDE_LABEL_TEXT[team.side]
           }
         >
           {label}
@@ -94,11 +102,13 @@ export function CourtView({ court, selectedWinnerTeamId, onSelectWinner }: Court
   return (
     <div
       className={
-        'rounded border p-3 transition-colors sm:p-4 lg:p-5 ' +
-        (selectedWinnerTeamId ? 'border-green-400 dark:border-green-700' : 'border-gray-300 dark:border-gray-600')
+        'rounded-sm border-2 bg-plank-50 p-3 transition-colors sm:p-4 lg:p-5 dark:bg-ink-800 ' +
+        (selectedWinnerTeamId ? 'border-green-500 dark:border-green-600' : 'border-plank-300 dark:border-ink-600')
       }
     >
-      <h2 className="mb-2 text-center text-lg font-semibold sm:text-xl">Court {court.index}</h2>
+      <h2 className="mb-2 text-center font-display text-lg font-semibold tracking-wide text-ink-800 sm:text-xl dark:text-plank-50">
+        Court {court.index}
+      </h2>
       <div className="flex gap-2 sm:gap-3 lg:gap-4">
         <TeamColumn
           teamId={court.teamAId}

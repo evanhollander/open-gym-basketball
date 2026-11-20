@@ -46,11 +46,11 @@ export function AddPlayerForm() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Player name"
-          className="flex-1 rounded border border-gray-300 px-3 py-2 text-base dark:border-gray-600 dark:bg-gray-800"
+          className="flex-1 rounded-sm border-2 border-plank-300 bg-white px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-400 dark:border-ink-600 dark:bg-ink-800"
         />
         <button
           type="submit"
-          className="rounded bg-blue-600 px-4 py-2 text-white active:bg-blue-700"
+          className="rounded-sm bg-hoop-500 px-4 py-2 font-display font-medium tracking-wide text-ink-950 active:bg-hoop-600"
         >
           Add
         </button>

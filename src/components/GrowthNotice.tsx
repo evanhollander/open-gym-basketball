@@ -16,7 +16,7 @@ export function GrowthNotice() {
   if (!growth) return null;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-200">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-sm border-2 border-line-400/50 bg-line-500/10 px-3 py-2 text-sm text-line-900 dark:border-line-500/60 dark:bg-line-900/40 dark:text-line-400">
       <div>
         <p>
           The roster can now support a bigger game ({growth.newCapacity} players instead of {growth.currentCapacity}).
@@ -29,7 +29,7 @@ export function GrowthNotice() {
             surprising case - waiting until Submit Winners needs no special
             handling from growTeams itself, the notice just stays up
             unconsumed until it's acted on. */}
-        <p className="mt-0.5 text-xs text-blue-800/80 dark:text-blue-300/80">
+        <p className="mt-0.5 text-xs text-line-900/70 dark:text-line-400/70">
           This applies right away, even mid-game. To wait until this game ends, submit the winners first, then tap
           Update Teams.
         </p>
@@ -37,7 +37,7 @@ export function GrowthNotice() {
       <button
         type="button"
         onClick={() => dispatch({ type: 'GROW_TEAMS' })}
-        className="shrink-0 rounded bg-blue-600 px-3 py-1 font-medium text-white active:bg-blue-700"
+        className="shrink-0 rounded-sm bg-line-500 px-3 py-1 font-display font-medium tracking-wide text-white active:bg-line-600"
       >
         Update Teams
       </button>

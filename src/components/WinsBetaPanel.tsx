@@ -20,30 +20,30 @@ export function WinsBetaPanel() {
         type="button"
         onClick={() => setExpanded((e) => !e)}
         aria-expanded={expanded}
-        className="text-xs text-gray-400 underline decoration-dotted underline-offset-2 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+        className="text-xs text-ink-700/50 underline decoration-dotted underline-offset-2 hover:text-ink-700 dark:text-plank-200/50 dark:hover:text-plank-200"
       >
         beta
       </button>
       {expanded && (
-        <div className="mx-auto mt-2 max-w-xs overflow-hidden rounded border border-gray-300 text-left sm:max-w-sm dark:border-gray-600">
+        <div className="mx-auto mt-2 max-w-xs overflow-hidden rounded-sm border-2 border-plank-300 text-left sm:max-w-sm dark:border-ink-600">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="bg-ink-900 text-plank-50">
               <tr>
-                <th className="px-3 py-1.5 text-left font-semibold">Player</th>
-                <th className="px-3 py-1.5 text-right font-semibold">Wins</th>
+                <th className="px-3 py-1.5 text-left font-display font-semibold tracking-wide">Player</th>
+                <th className="px-3 py-1.5 text-right font-display font-semibold tracking-wide tabular-nums">Wins</th>
               </tr>
             </thead>
             <tbody>
               {ranked.map((p) => (
-                <tr key={p.id} className="border-t border-gray-200 dark:border-gray-700">
+                <tr key={p.id} className="border-t border-plank-200 dark:border-ink-700">
                   <td className="max-w-0 truncate px-3 py-1">{p.name}</td>
-                  <td className="px-3 py-1 text-right">{p.wins}</td>
+                  <td className="px-3 py-1 text-right font-display tabular-nums text-hoop-600 dark:text-hoop-400">{p.wins}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {ranked.length === 0 && (
-            <p className="p-3 text-center text-sm text-gray-500 dark:text-gray-400">No players yet.</p>
+            <p className="p-3 text-center text-sm text-ink-700/70 dark:text-plank-200/70">No players yet.</p>
           )}
         </div>
       )}

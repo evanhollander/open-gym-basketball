@@ -1,16 +1,20 @@
 import { useTileSelection } from './TileSelection';
 import type { DropTarget, Player, TeamSide } from '../types';
 
-// Same fixed jersey colors as CourtView's SIDE_STYLES (reused, not
-// reinvented - that map already proves out at this exact bg+ring
-// combination in both themes for the header, so the dot gets the same
-// treatment instead of a separate "filled vs. hollow, same gray" scheme
-// that technically had enough contrast but visually read backwards: a gray
-// dot for "White" and a near-white dot for "Dark" doesn't match either
-// label at a glance, which is the whole point of the dot.
-const SIDE_DOT: Record<TeamSide, string> = {
-  white: 'bg-white ring-2 ring-gray-300',
-  dark: 'bg-gray-900 ring-2 ring-gray-500',
+// Fixed (not app-theme-dependent) jersey text color + card tint, matching
+// CourtView's SIDE_CONTAINER on the dugout each card sits in - a plain
+// theme-driven card (bg-white dark:bg-ink-700) would fight the dugout color
+// behind it instead of reading as part of it (e.g. a dark-mode card would go
+// medium-gray on top of the white team's literally-white dugout). Only
+// applies when `side` is set (a team slot) - the bench isn't jersey-colored,
+// so it keeps the plain theme-driven treatment below.
+const SIDE_TEXT: Record<TeamSide, string> = {
+  white: 'text-ink-900',
+  dark: 'text-plank-50',
+};
+const SIDE_CARD: Record<TeamSide, string> = {
+  white: SIDE_TEXT.white + ' bg-plank-50 ring-ink-900/15 active:bg-plank-100',
+  dark: SIDE_TEXT.dark + ' bg-ink-800 ring-plank-50/20 active:bg-ink-700',
 };
 
 /** A single player, shown on a team slot or the bench. Tap to select it
@@ -45,25 +49,19 @@ export function PlayerCard({ player, side, target }: { player: Player; side?: Te
       // index.css) - no animation library needed for a tap-highlight,
       // tap-away-shake, tap-target-slide interaction this small.
       className={
-        'relative block w-full select-none rounded px-2 py-1.5 pr-9 text-left text-sm shadow-sm ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 sm:px-3 sm:py-2 sm:pr-11 bg-white dark:bg-gray-800 ' +
+        'relative block w-full select-none rounded-sm px-2 py-1.5 pr-10 text-left text-sm ring-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-400 focus-visible:ring-offset-1 sm:px-3 sm:py-2 sm:pr-12 ' +
         (selected
-          ? 'ring-2 ring-blue-500 dark:ring-blue-400 bg-blue-50 dark:bg-blue-950'
-          : 'ring-gray-200 dark:ring-gray-700 active:bg-gray-50 dark:active:bg-gray-700') +
+          ? 'ring-2 ring-hoop-500 bg-hoop-500/15 ' + (side ? SIDE_TEXT[side] : '')
+          : side
+            ? SIDE_CARD[side]
+            : 'bg-white dark:bg-ink-700 ring-plank-300 dark:ring-ink-600 active:bg-plank-50 dark:active:bg-ink-600') +
         (shaking ? ' animate-tile-shake' : '')
       }
     >
-      <span className="flex min-w-0 items-center gap-1.5">
-        {side && (
-          <span
-            title={side === 'white' ? 'White team' : 'Dark team'}
-            className={'inline-block h-2.5 w-2.5 shrink-0 rounded-full ' + SIDE_DOT[side]}
-          />
-        )}
-        <span className="block truncate text-base font-semibold sm:text-lg">{player.name}</span>
-      </span>
+      <span className="block truncate text-base font-semibold sm:text-lg">{player.name}</span>
       <span
         title={`Sat out ${player.sitCount} time${player.sitCount === 1 ? '' : 's'}`}
-        className="absolute bottom-0.5 right-1.5 text-[10px] leading-none text-gray-500 sm:bottom-1 sm:right-2 sm:text-xs dark:text-gray-400"
+        className="absolute bottom-0.5 right-0.5 rounded-xs bg-ink-900 px-1 py-px font-display text-[10px] leading-tight tracking-wide text-hoop-400 tabular-nums sm:bottom-1 sm:right-1 sm:text-xs dark:bg-ink-950"
       >
         sat {player.sitCount}
       </span>

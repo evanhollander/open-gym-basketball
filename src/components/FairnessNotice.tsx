@@ -22,7 +22,7 @@ export function FairnessNotice() {
   const gap = overSatPlayer.sitCount - underSatPlayer.sitCount;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-sm border-2 border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
       <p>
         <strong>{overSatPlayer.name}</strong> has sat out {gap} more round{gap === 1 ? '' : 's'} than{' '}
         <strong>{underSatPlayer.name}</strong>, who's still playing. Swap them, or handle it yourself by tapping
@@ -33,7 +33,7 @@ export function FairnessNotice() {
         onClick={() =>
           dispatch({ type: 'SWAP_PLAYERS', playerAId: lopsidedPair.overSatPlayerId, playerBId: lopsidedPair.underSatPlayerId })
         }
-        className="shrink-0 rounded bg-amber-600 px-3 py-1 font-medium text-white active:bg-amber-700"
+        className="shrink-0 rounded-sm bg-amber-600 px-3 py-1 font-display font-medium tracking-wide text-white active:bg-amber-700"
       >
         Auto-balance
       </button>

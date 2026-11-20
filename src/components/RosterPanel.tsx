@@ -12,16 +12,18 @@ export function RosterPanel() {
     // here, and let the list itself flow into columns instead of staying a
     // single column stretched wide with nothing to fill it.
     <section className="mx-auto w-full max-w-md p-4 lg:max-w-3xl xl:max-w-5xl">
-      <h2 className="mb-3 text-lg font-semibold">All Players ({state.players.length})</h2>
+      <h2 className="mb-3 font-display text-lg font-semibold tracking-wide text-ink-800 dark:text-plank-50">
+        All Players ({state.players.length})
+      </h2>
       <div className="max-w-md">
         <AddPlayerForm />
         {state.lastError && (
-          <p className="mt-2 rounded bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          <p className="mt-2 rounded-sm bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
             {state.lastError}
           </p>
         )}
         {state.lastNotice && (
-          <p className="mt-2 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <p className="mt-2 rounded-sm bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
             {state.lastNotice}
           </p>
         )}
@@ -31,7 +33,7 @@ export function RosterPanel() {
           <RosterRow key={player.id} player={player} />
         ))}
         {state.players.length === 0 && (
-          <p className="py-4 text-center text-sm text-gray-500 lg:col-span-2 xl:col-span-3 dark:text-gray-400">
+          <p className="py-4 text-center text-sm text-ink-700/70 lg:col-span-2 xl:col-span-3 dark:text-plank-200/70">
             No players yet - add your first player above.
           </p>
         )}

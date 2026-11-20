@@ -23,8 +23,8 @@ export default defineConfig({
         name: 'Open Gym Basketball',
         short_name: 'Open Gym',
         description: 'Fair team rotation for pickup basketball - add players, assign courts, track who sits.',
-        theme_color: '#2563eb',
-        background_color: '#ffffff',
+        theme_color: '#141a26',
+        background_color: '#f1e0b4',
         display: 'standalone',
         start_url: '.',
         scope: '.',
@@ -37,8 +37,11 @@ export default defineConfig({
       workbox: {
         // Everything the app needs is static (no API calls - state lives in
         // localStorage), so precaching the whole build means it keeps
-        // working with zero network at all once installed.
-        globPatterns: ['**/*.{js,css,html,svg,png}'],
+        // working with zero network at all once installed. woff2 is in here
+        // because the Oswald/Archivo fonts are self-hosted (@fontsource,
+        // see index.css) specifically so they don't depend on a Google
+        // Fonts CDN request that would break this offline guarantee.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
       },
     }),
   ],

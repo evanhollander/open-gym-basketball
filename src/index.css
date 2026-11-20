@@ -1,11 +1,63 @@
 @import "tailwindcss";
 
+/* Self-hosted (not CDN) so the PWA keeps working fully offline once
+   installed - vite-plugin-pwa precaches these like any other build asset.
+   Oswald: condensed/bold, used for headers, team labels, and scoreboard-
+   style numerals (sit counts, wins). Archivo: body/UI text, buttons, forms. */
+/* latin-only subsets - this app is English-only UI, and pulling in every
+   unicode range (cyrillic, vietnamese, etc) would needlessly bloat the PWA's
+   offline precache (see vite.config.ts's globPatterns comment). */
+@import "@fontsource/oswald/latin-500.css";
+@import "@fontsource/oswald/latin-600.css";
+@import "@fontsource/oswald/latin-700.css";
+@import "@fontsource/archivo/latin-400.css";
+@import "@fontsource/archivo/latin-500.css";
+@import "@fontsource/archivo/latin-600.css";
+@import "@fontsource/archivo/latin-700.css";
+
 /* Default Tailwind v4 dark: variant follows prefers-color-scheme only. The
    Settings page's Light/Dark/System control needs to override that with a
    manual choice, so dark: also responds to a .dark class on <html> (see
    ThemeManager.tsx, which applies it) - "system" just means no override
    class is added, falling back to the media query below on its own. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Hardwood/scoreboard identity tokens. `hoop` (ball/rim orange) and `line`
+   (painted court-line blue) are the two accents; `plank` is the hardwood-
+   floor background family, `ink` the near-navy text/panel family. White and
+   dark TEAM jersey colors (CourtView/PlayerCard's SIDE_STYLES/SIDE_DOT) are
+   deliberately NOT tokens here - they're fixed real-pinny colors, unrelated
+   to this app-theme palette by design (see that code's own comment). */
+@theme {
+  --font-display: "Oswald", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+
+  --color-plank-50: #faf3e2;
+  --color-plank-100: #f1e0b4;
+  --color-plank-200: #e7ca92;
+  --color-plank-300: #d2a862;
+  --color-plank-800: #3a2c18;
+  --color-plank-900: #2a2013;
+  --color-plank-950: #1c150c;
+
+  --color-ink-50: #f2eee3;
+  --color-ink-200: #cbd3de;
+  --color-ink-600: #3a4356;
+  --color-ink-700: #2a3142;
+  --color-ink-800: #1c2331;
+  --color-ink-900: #141a26;
+  --color-ink-950: #0d111a;
+
+  --color-hoop-400: #ff8c3d;
+  --color-hoop-500: #e8630a;
+  --color-hoop-600: #c8520a;
+  --color-hoop-700: #a4420a;
+
+  --color-line-400: #4c8fd9;
+  --color-line-500: #1e5fa8;
+  --color-line-600: #184b85;
+  --color-line-900: #0f2b4d;
+}
 
 /* Tap-away-to-cancel feedback for the selected player card in
    RotationBoard.tsx - the slide/swap animation itself is done with inline

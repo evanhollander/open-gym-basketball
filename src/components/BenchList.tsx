@@ -21,11 +21,13 @@ export function BenchList() {
         onTileClick(null, target);
       }}
       className={
-        'rounded border p-3 transition-colors sm:p-4 lg:p-5 ' +
-        (selectedPlayerId ? 'border-blue-400 dark:border-blue-600' : 'border-gray-300 dark:border-gray-600')
+        'rounded-sm border-2 border-dashed bg-plank-50/60 p-3 transition-colors sm:p-4 lg:p-5 dark:bg-ink-800/40 ' +
+        (selectedPlayerId ? 'border-line-400 dark:border-line-500' : 'border-plank-300 dark:border-ink-600')
       }
     >
-      <h2 className="mb-2 text-center text-lg font-semibold sm:text-xl">Bench</h2>
+      <h2 className="mb-2 text-center font-display text-lg font-semibold tracking-wide text-ink-800 sm:text-xl dark:text-plank-50">
+        Bench
+      </h2>
       {/* Each player was a full-width bar with most of the row empty once
           the bench had more than a couple people on a desktop/Chromebook
           screen - flow into columns there the same way the roster list
@@ -35,7 +37,7 @@ export function BenchList() {
           <PlayerCard key={p.id} player={p} target={target} />
         ))}
         {benchPlayers.length === 0 && (
-          <p className="py-2 text-center text-sm text-gray-500 sm:text-base md:col-span-2 lg:col-span-3 dark:text-gray-400">
+          <p className="py-2 text-center text-sm text-ink-700/70 sm:text-base md:col-span-2 lg:col-span-3 dark:text-plank-200/70">
             {selectedPlayerId ? 'Tap here to bench the selected player.' : 'Nobody sitting - tap a player, then tap here to bench them.'}
           </p>
         )}
